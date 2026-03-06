@@ -1,0 +1,44 @@
+.dist-panel {
+  grid-column: 3 / 4;
+}
+
+.dist-bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.dist-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 50px;
+  gap: 8px;
+  align-items: center;
+}
+
+.dist-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+.dist-bar-bg {
+  height: 14px;
+  background: var(--panel2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.dist-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+
+.dist-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  text-align: right;
+}

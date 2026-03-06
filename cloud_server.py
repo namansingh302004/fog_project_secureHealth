@@ -242,13 +242,13 @@ def main():
 
     init_db()
 
-    log.info("═══════════════════════════════════════════════")
+    log.info("===============================================")
     log.info("  CLOUD SERVER STARTED")
     log.info(f"  Listening: http://0.0.0.0:{args.port}")
     log.info(f"  Dashboard: http://127.0.0.1:{args.port}/dashboard")
     log.info(f"  API:       http://127.0.0.1:{args.port}/api/stats")
     log.info("  Waiting for anomaly alerts from Fog Gateway...")
-    log.info("═══════════════════════════════════════════════")
+    log.info("===============================================")
 
     server = HTTPServer(("0.0.0.0", args.port), CloudHandler)
     try:

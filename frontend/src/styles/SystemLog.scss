@@ -1,0 +1,45 @@
+.log-panel {
+  grid-column: 3 / 4;
+}
+
+#sys-log {
+  max-height: 130px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.8;
+}
+
+#sys-log::-webkit-scrollbar {
+  width: 3px;
+}
+
+#sys-log::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+
+.log-line {
+  display: flex;
+  gap: 8px;
+}
+
+.log-ts {
+  color: var(--teal-dim);
+}
+
+.log-msg-info {
+  color: var(--text-dim);
+}
+
+.log-msg-warn {
+  color: var(--amber);
+}
+
+.log-msg-alert {
+  color: var(--red);
+}
+
+.log-msg-ok {
+  color: var(--green);
+}

@@ -1,4 +1,17 @@
 # -----------------------------
+# Frontend and Node.js
+# -----------------------------
+node_modules/
+dist/
+build/
+.next/
+.server/
+.client/
+.temp/
+.cache/
+*.local
+
+# -----------------------------
 # Data and Machine Learning
 # -----------------------------
 data/
