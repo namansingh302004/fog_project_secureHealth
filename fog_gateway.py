@@ -107,16 +107,30 @@ def decrypt_aes256_cbc(ciphertext_with_iv: bytes, key: bytes) -> bytes:
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
     from cryptography.hazmat.backends import default_backend
 
-    iv         = ciphertext_with_iv[:16]
-    ciphertext = ciphertext_with_iv[16:]
+    try:
+        if len(ciphertext_with_iv) < 16:
+            raise ValueError("Ciphertext too short (missing IV)")
 
-    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-    decryptor = cipher.decryptor()
-    padded = decryptor.update(ciphertext) + decryptor.finalize()
+        iv         = ciphertext_with_iv[:16]
+        ciphertext = ciphertext_with_iv[16:]
 
-    # Remove PKCS7 padding
-    pad_len = padded[-1]
-    return padded[:-pad_len]
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        decryptor = cipher.decryptor()
+        padded = decryptor.update(ciphertext) + decryptor.finalize()
+
+        # Remove PKCS7 padding with validation
+        pad_len = padded[-1]
+        if pad_len < 1 or pad_len > 16:
+            raise ValueError("Invalid PKCS7 padding length")
+        
+        # Verify all padding bytes are correct
+        if padded[-pad_len:] != bytes([pad_len] * pad_len):
+            raise ValueError("Invalid PKCS7 padding content")
+
+        return padded[:-pad_len]
+    except Exception as e:
+        log.error(f"❌ DECRYPTION FAILURE: {str(e)}")
+        raise ValueError("Decryption failed - possible key mismatch or data corruption")
 
 
 def recv_exact(sock, n):
@@ -229,13 +243,14 @@ class FogStats:
 #  Client Handler (per connection thread)
 # ─────────────────────────────────────────────
 def handle_client(conn, addr, aes_key, hmac_key, model, scaler, pca,
-                   stats: FogStats, cloud_host: str, cloud_port: int):
+                   stats: FogStats, cloud_host: str, cloud_port: int, show_crypto: bool = False):
     log.info(f"Edge node connected: {addr}")
     beat_count = 0
     try:
         while True:
             # Read 4-byte length prefix
             raw_len = recv_exact(conn, 4)
+            if not raw_len: break
             payload_len = struct.unpack(">I", raw_len)[0]
 
             # Read full payload
@@ -245,15 +260,34 @@ def handle_client(conn, addr, aes_key, hmac_key, model, scaler, pca,
             received_mac  = wire_payload[:32]
             ciphertext    = wire_payload[32:]
 
+            if show_crypto:
+                log.info("\n" + "═"*60)
+                log.info(f"  [DECRYPTION DEBUG] Packet from {addr}")
+                log.info(f"  STEP 1: Received Ciphertext (Hex snippet):")
+                log.info(f"          {ciphertext.hex()[:64]}...")
+                log.info(f"  STEP 2: Verifying HMAC-SHA256 Signature...")
+
             # 1. Verify HMAC integrity
             if not verify_hmac(ciphertext, received_mac, hmac_key):
                 stats.hmac_failures += 1
                 log.warning(f"HMAC verification FAILED from {addr} — packet discarded")
                 continue
 
+            if show_crypto:
+                log.info(f"          ✓ HMAC Verified (Integrity & Authenticity OK)")
+                log.info(f"  STEP 3: Decrypting with AES-256-CBC...")
+
             # 2. Decrypt
             plaintext = decrypt_aes256_cbc(ciphertext, aes_key)
             pkt       = json.loads(plaintext.decode("utf-8"))
+
+            if show_crypto:
+                # Create a snippet for display
+                display_pkt = pkt.copy()
+                display_pkt["ecg_signal"] = display_pkt["ecg_signal"][:5]
+                log.info(f"  STEP 4: Recovered Plaintext (JSON snippet):")
+                log.info(f"          {json.dumps(display_pkt)}...")
+                log.info("═"*60 + "\n")
 
             ecg_features = np.array(pkt["ecg_signal"], dtype=np.float32)
             beat_id      = pkt["beat_id"]
@@ -357,6 +391,8 @@ def main():
     parser.add_argument("--cloud_host", default=CLOUD_HOST)
     parser.add_argument("--cloud_port", type=int, default=CLOUD_PORT)
     parser.add_argument("--stats_port", type=int, default=9001)
+    parser.add_argument("--show-crypto", action="store_true",
+                        help="Show decryption and HMAC steps (Security Demo)")
     args = parser.parse_args()
 
     log.info("═══════════════════════════════════════════════")
@@ -390,7 +426,7 @@ def main():
             thread = threading.Thread(
                 target=handle_client,
                 args=(conn, addr, aes_key, hmac_key, model, scaler, pca,
-                       stats, args.cloud_host, args.cloud_port),
+                       stats, args.cloud_host, args.cloud_port, args.show_crypto),
                 daemon=True
             )
             thread.start()

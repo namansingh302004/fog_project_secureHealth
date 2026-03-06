@@ -60,6 +60,11 @@ def _ensure_keys():
         aes_key = f.read()
     with open(HMAC_FILE, "rb") as f:
         hmac_key = f.read()
+
+    # Security Check: Ensure keys are 256-bit
+    if len(aes_key) != 32 or len(hmac_key) != 32:
+        raise ValueError("Security Error: Invalid key length. Keys must be 32 bytes for AES-256/HMAC-256.")
+
     return aes_key, hmac_key
 
 
@@ -98,42 +103,57 @@ def load_ecg_data(data_path: str):
 
 
 def build_packet(beat_id: int, ecg_features: np.ndarray, true_label: int,
-                  aes_key: bytes, hmac_key: bytes) -> bytes:
+                  aes_key: bytes, hmac_key: bytes, verbose: bool = False) -> bytes:
     """
     Build a full encrypted + authenticated packet.
-
-    Packet structure (after socket framing):
-      [4 bytes: payload_len] [payload]
-
-    Payload (encrypted):
-      JSON with: beat_id, timestamp, ecg_signal (list), true_label, device_id
     """
     payload_dict = {
         "beat_id":    beat_id,
         "timestamp":  time.time(),
-        "ecg_signal": ecg_features.tolist(),
+        "ecg_signal": ecg_features.tolist()[:5],  # Truncate for display if verbose
         "true_label": int(true_label),
         "device_id":  "EDGE_NODE_001",
-        "sampling_hz": 125
     }
-    plaintext = json.dumps(payload_dict).encode("utf-8")
+    
+    # Full payload for actual transmission
+    full_payload = payload_dict.copy()
+    full_payload["ecg_signal"] = ecg_features.tolist()
+    
+    plaintext = json.dumps(full_payload).encode("utf-8")
+    
+    if verbose:
+        print("\n" + "═"*60)
+        print(f"  [ENCRYPTION DEBUG] Beat #{beat_id}")
+        print(f"  STEP 1: Plaintext (JSON snippet):")
+        print(f"          {json.dumps(payload_dict)}...")
+        print(f"  STEP 2: Encrypting with AES-256-CBC...")
+    
     ciphertext = encrypt_aes256_cbc(plaintext, aes_key)
+    
+    if verbose:
+        print(f"  STEP 3: Ciphertext (Hex snippet):")
+        print(f"          {ciphertext.hex()[:64]}...")
+    
     mac = compute_hmac(ciphertext, hmac_key)
+    
+    if verbose:
+        print(f"  STEP 4: HMAC-SHA256 Signature:")
+        print(f"          {mac.hex()}")
+        print("═"*60 + "\n")
 
-    # Final wire format: MAC(32) + CIPHERTEXT
     wire_payload = mac + ciphertext
-    # Length-prefix framing: 4-byte big-endian length
     frame = struct.pack(">I", len(wire_payload)) + wire_payload
     return frame
 
 
 class EdgeSensorNode:
-    def __init__(self, data_path, fog_host, fog_port, bpm=60, max_beats=None):
+    def __init__(self, data_path, fog_host, fog_port, bpm=60, max_beats=None, show_crypto=False):
         self.data_path  = data_path
         self.fog_host   = fog_host
         self.fog_port   = fog_port
         self.beat_interval = 60.0 / bpm
         self.max_beats  = max_beats
+        self.show_crypto = show_crypto
         self.aes_key, self.hmac_key = _ensure_keys()
         self.stats = {"sent": 0, "errors": 0, "normal": 0, "anomaly": 0}
         self._running = False
@@ -178,7 +198,7 @@ class EdgeSensorNode:
                 # Build & send encrypted packet
                 t_start = time.time()
                 packet  = build_packet(beat_id, ecg_features, true_label,
-                                        self.aes_key, self.hmac_key)
+                                        self.aes_key, self.hmac_key, verbose=self.show_crypto)
                 try:
                     sock.sendall(packet)
                     self.stats["sent"] += 1
@@ -229,10 +249,12 @@ def main():
                         help="Simulated heart rate (beats per minute)")
     parser.add_argument("--max_beats", type=int, default=None,
                         help="Limit number of beats (default: full dataset)")
+    parser.add_argument("--show-crypto", action="store_true",
+                        help="Show encryption steps for each packet (Security Demo)")
     args = parser.parse_args()
 
     node = EdgeSensorNode(args.data_path, args.fog_host, args.fog_port,
-                          args.bpm, args.max_beats)
+                          args.bpm, args.max_beats, show_crypto=args.show_crypto)
     node.run()
 
 

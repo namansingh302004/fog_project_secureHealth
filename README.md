@@ -1,4 +1,5 @@
 # Secure Fog Cardiac Monitoring System 🩺
+
 ### ML-Powered ECG Anomaly Detection with Edge-Fog-Cloud Architecture
 
 **Course:** BCSE313L – Fundamentals of FOG and Edge Computing  
@@ -7,6 +8,7 @@
 ---
 
 ## 🎯 Project Objective
+
 The goal is to develop a **privacy-preserving, bandwidth-efficient** cardiac monitoring system. By leveraging **Fog Computing** and **TinyML**, we process raw ECG data close to the patient (Edge/Fog) and only forward critical anomalies to the Cloud. This reduces network congestion by **~90%** and ensures sensitive medical data is encrypted before transmission.
 
 ---
@@ -45,28 +47,35 @@ graph TD
 ## 🚀 Getting Started
 
 ### 1. Prerequisites
+
 - Python 3.9+
 - Node.js 18+ (for Frontend)
 - `pip install -r requirements.txt`
 
 ### 2. Prepare the Model
+
 Run the training script to generate the Isolation Forest model using the MIT-BIH dataset (or synthetic data if missing).
+
 ```bash
 python train_model.py
 ```
 
 ### 3. Run the Backend (Python)
+
 Open three terminals and run the following in order:
+
 1. **Cloud Server:** `python cloud_server.py` (Starts on port 8080)
 2. **Fog Gateway:** `python fog_gateway.py` (Listens on TCP 9000)
 3. **Edge Sensor:** `python edge_sensor.py` (Streams ECG data)
 
 ### 4. Run the Frontend (React)
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+
 Navigate to `http://localhost:5173` to view the live dashboard.
 
 ---
@@ -74,10 +83,12 @@ Navigate to `http://localhost:5173` to view the live dashboard.
 ## 🧠 ML & Security Core
 
 ### Isolation Forest (TinyML Ready)
+
 - **Why?** Unsupervised (detects "unknown" anomalies), low memory footprint (~300KB), and lightning-fast inference (<10ms).
 - **Preprocessing:** PCA (187 → 20 features) preserves 95% variance while slashing latency.
 
 ### Security Stack
+
 - **AES-256-CBC:** Military-grade encryption for patient data.
 - **HMAC-SHA256:** Cryptographic signing to prevent packet injection/tampering.
 - **Privacy by Design:** Raw data stays in the Fog layer; only meta-alerts reach the Cloud.
@@ -85,6 +96,7 @@ Navigate to `http://localhost:5173` to view the live dashboard.
 ---
 
 ## 📁 File Structure
+
 ```text
 .
 ├── frontend/           # Modern React + Vite + Bootstrap Dashboard
@@ -100,9 +112,35 @@ Navigate to `http://localhost:5173` to view the live dashboard.
 ---
 
 ## 📊 Performance Targets
-| Metric | Target | Current |
-|--------|--------|---------|
-| Bandwidth Saving | >85% | ~90% |
-| Inference Latency | <100ms | ~5ms |
-| Model Size | <1MB | ~400KB |
-| Encryption Overhead | <10% | ~2% |
+
+| Metric              | Target | Current |
+| ------------------- | ------ | ------- |
+| Bandwidth Saving    | >85%   | ~90%    |
+| Inference Latency   | <100ms | ~5ms    |
+| Model Size          | <1MB   | ~400KB  |
+| Encryption Overhead | <10%   | ~2%     |
+
+---
+
+## 🎓 Teacher's Demo Guide: Encryption & Privacy
+
+To demonstrate the secure data flow between the **Edge** and **Fog** layers:
+
+1.  **Start the Fog Gateway in a new terminal:**
+
+    ```bash
+    python fog_gateway.py --show-crypto
+    ```
+
+2.  **Start the Edge Sensor in another terminal:**
+    ```bash
+    python edge_sensor.py --show-crypto --max_beats 10
+    ```
+
+### 🔍 What to show your teacher:
+
+- **Step 1 (Edge Node):** Point to the **Plaintext (JSON)**. This is the raw medical data (beat_id, ECG signal) before it leaves the patient's device.
+- **Step 2 (Edge Node):** Show the **Hex Ciphertext**. This is what actually travels over the network. If a hacker intercepts this, they only see meaningless hex characters.
+- **Step 3 (Edge Node):** Point to the **HMAC-SHA256 Signature**. This ensures the data hasn't been tampered with.
+- **Step 4 (Fog Node):** Show that the **Fog Node receives the same Hex Ciphertext**, verifies the signature, and only _then_ recovers the original JSON for ML processing.
+- **Conclusion:** This demonstrates **Privacy by Design**, where raw medical data is never transmitted in cleartext.
