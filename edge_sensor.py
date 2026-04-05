@@ -125,7 +125,7 @@ def build_packet(beat_id: int, ecg_features: np.ndarray, true_label: int,
 class EdgeSensorNode:
     def __init__(self, data_path, fog_host, fog_port,
                  bpm=60, max_beats=None, device_id="EDGE_NODE_001",
-                 show_crypto=False):
+                 show_crypto=False, anomaly_only=False):
         self.data_path     = data_path
         self.fog_host      = fog_host
         self.fog_port      = fog_port
@@ -133,6 +133,7 @@ class EdgeSensorNode:
         self.max_beats     = max_beats
         self.device_id     = device_id
         self.show_crypto   = show_crypto
+        self.anomaly_only  = anomaly_only
         self.aes_key       = None   # Set after DH handshake
         self.hmac_key      = None
         self.stats = {"sent": 0, "errors": 0, "normal": 0, "anomaly": 0}
@@ -160,6 +161,10 @@ class EdgeSensorNode:
 
     def run(self):
         df = load_ecg_data(self.data_path)
+
+        if self.anomaly_only:
+            df = df[df.iloc[:, -1] != 0].reset_index(drop=True)
+            print(f"[EDGE:{self.device_id}] Demo mode enabled — streaming anomaly-only beats ({len(df)} samples)")
 
         print(f"\n[EDGE:{self.device_id}] ════════════════════════════════════════")
         print(f"[EDGE:{self.device_id}]  EDGE SENSOR NODE STARTED")
@@ -242,12 +247,15 @@ def main():
                         help="Unique sensor device identifier")
     parser.add_argument("--show-crypto", action="store_true",
                         help="Print encryption steps per packet (demo mode)")
+    parser.add_argument("--anomaly_only", action="store_true",
+                        help="Demo mode: send only non-normal beats for visible anomaly alerts")
     args = parser.parse_args()
 
     node = EdgeSensorNode(
         args.data_path, args.fog_host, args.fog_port,
         args.bpm, args.max_beats, args.device_id,
-        show_crypto=args.show_crypto
+        show_crypto=args.show_crypto,
+        anomaly_only=args.anomaly_only
     )
     node.run()
 

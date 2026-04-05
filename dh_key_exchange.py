@@ -190,10 +190,10 @@ def edge_perform_handshake(sock: socket.socket) -> tuple:
     shared = dh.compute_shared(fog_pubkey)
     aes_key, hmac_key = hkdf_derive(shared)
 
-    print(f"[DH] ✓ Session keys derived via HKDF-SHA256")
+    print("[DH] Session keys derived via HKDF-SHA256")
     print(f"[DH]   AES-256 key  : {aes_key.hex()[:16]}... (32 bytes)")
     print(f"[DH]   HMAC-256 key : {hmac_key.hex()[:16]}... (32 bytes)")
-    print(f"[DH]   (These keys exist only in memory — never written to disk)")
+    print("[DH]   (These keys exist only in memory - never written to disk)")
     return aes_key, hmac_key
 
 
@@ -218,7 +218,7 @@ def fog_perform_handshake(conn: socket.socket, addr) -> tuple:
     shared = dh.compute_shared(edge_pubkey)
     aes_key, hmac_key = hkdf_derive(shared)
 
-    log.info(f"[DH] ✓ Session keys derived for {addr} — AES: {aes_key.hex()[:8]}...")
+    log.info(f"[DH] Session keys derived for {addr} - AES: {aes_key.hex()[:8]}...")
     return aes_key, hmac_key
 
 

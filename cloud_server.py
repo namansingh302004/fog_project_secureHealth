@@ -187,7 +187,7 @@ class CloudHandler(BaseHTTPRequestHandler):
                 score      = data.get("anomaly_score", 0)
                 ms         = data.get("inference_ms", 0)
                 log.warning(
-                    f"🚨 ALERT stored | Beat #{data.get('beat_id')} | "
+                    f"[ALERT] stored | Beat #{data.get('beat_id')} | "
                     f"{label_name} | Score: {score:.4f} | {ms:.2f}ms"
                 )
                 self._send_json({"status": "ok"})

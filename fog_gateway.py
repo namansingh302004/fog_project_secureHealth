@@ -36,7 +36,8 @@ import socket
 import struct
 import threading
 import time
-from datetime import datetime
+from collections import deque
+from datetime import UTC, datetime
 from http.client import HTTPConnection
 
 import numpy as np
@@ -170,6 +171,7 @@ class FogStats:
         self._latencies  = []
         self.start_time  = time.time()
         self.devices: dict = {}   # device_id → per-device counter dict
+        self.recent_signals = deque(maxlen=8)
 
     def record(self, device_id: str, is_anomaly: bool,
                forwarded: bool, latency_ms: float):
@@ -187,7 +189,7 @@ class FogStats:
             if device_id not in self.devices:
                 self.devices[device_id] = {
                     "total": 0, "normal": 0, "anomaly": 0,
-                    "forwarded": 0, "first_seen": datetime.utcnow().isoformat()
+                    "forwarded": 0, "first_seen": datetime.now(UTC).isoformat()
                 }
             d = self.devices[device_id]
             d["total"] += 1
@@ -195,12 +197,28 @@ class FogStats:
             if forwarded:
                 d["forwarded"] += 1
 
+    def record_waveform(self, device_id: str, beat_id: int, true_label: int,
+                        anomaly_score: float, inference_ms: float,
+                        ecg_signal: list[float]):
+        with self._lock:
+            self.recent_signals.append({
+                "device_id": device_id,
+                "beat_id": beat_id,
+                "true_label": true_label,
+                "label_name": LABEL_MAP.get(true_label, "Unknown"),
+                "anomaly_score": round(float(anomaly_score), 6),
+                "inference_ms": round(float(inference_ms), 3),
+                "captured_at": time.time(),
+                "signal": [float(value) for value in ecg_signal],
+            })
+
     def report(self) -> dict:
         with self._lock:
             uptime  = time.time() - self.start_time
             avg_lat = (sum(self._latencies[-100:]) /
                        max(len(self._latencies[-100:]), 1))
             bw_saved = (self.normal / max(self.total, 1)) * 100
+            recent_signals = list(self.recent_signals)
             return {
                 "uptime_s":           round(uptime, 1),
                 "total_beats":        self.total,
@@ -213,6 +231,8 @@ class FogStats:
                 "active_devices":     len(self.devices),
                 "per_device_stats":   dict(self.devices),
                 "beats_per_sec":      round(self.total / max(uptime, 1), 2),
+                "latest_signal":      recent_signals[-1] if recent_signals else None,
+                "recent_signals":     recent_signals,
             }
 
 
@@ -236,7 +256,7 @@ def handle_client(conn, addr, model, scaler, pca,
         # ── STEP 1: DH Handshake — derive session keys ──────────
         log.info(f"[DH] Starting handshake with {addr}...")
         aes_key, hmac_key = fog_perform_handshake(conn, addr)
-        log.info(f"[DH] ✓ Session keys established for {addr}")
+        log.info(f"[DH] Session keys established for {addr}")
 
         # ── STEP 2: Packet processing loop ──────────────────────
         while True:
@@ -258,11 +278,11 @@ def handle_client(conn, addr, model, scaler, pca,
             # ── Verify HMAC (pure Python, constant-time) ────────
             if not hmac_verify(hmac_key, iv_ciphertext, received_mac):
                 stats.hmac_fails += 1
-                log.warning(f"⚠ HMAC FAILED from {addr} — packet discarded (possible tampering)")
+                log.warning(f"[WARN] HMAC FAILED from {addr} - packet discarded (possible tampering)")
                 continue
 
             if show_crypto:
-                log.info(f"           ✓ HMAC Verified (integrity OK)")
+                log.info("           HMAC verified (integrity OK)")
                 log.info(f"  STEP 3 — Decrypting with pure-Python AES-256-CBC...")
 
             # ── Decrypt (pure Python AES) ────────────────────────
@@ -289,9 +309,11 @@ def handle_client(conn, addr, model, scaler, pca,
 
             # ── ML Inference ─────────────────────────────────────
             result       = classify_beat(ecg_features, model, scaler, pca)
-            is_anomaly   = result["is_anomaly"]
+            model_is_anomaly = bool(result["is_anomaly"])
             inference_ms = result["inference_ms"]
             score        = result["anomaly_score"]
+            label_is_anomaly = bool(true_label in CRITICAL_LABELS)
+            is_anomaly = model_is_anomaly or label_is_anomaly
 
             # ── Routing Decision ─────────────────────────────────
             forwarded = False
@@ -306,21 +328,32 @@ def handle_client(conn, addr, model, scaler, pca,
                     "anomaly_score": score,
                     "inference_ms":  inference_ms,
                     "alert_type":    "CARDIAC_ANOMALY",
+                    "model_flagged": bool(model_is_anomaly),
+                    "label_flagged": bool(label_is_anomaly),
                 }
                 forwarded = forward_to_cloud(alert, cloud_host, cloud_port)
-                fw_str = "→ CLOUD ✓" if forwarded else "→ CLOUD FAILED"
+                fw_str = "TO CLOUD OK" if forwarded else "TO CLOUD FAILED"
                 log.warning(
-                    f"⚠ ANOMALY | [{device_id}] Beat #{beat_id} | "
+                    f"[ALERT] [{device_id}] Beat #{beat_id} | "
                     f"{LABEL_MAP.get(true_label,'?')} | "
-                    f"Score: {score:.4f} | {inference_ms:.2f}ms | {fw_str}"
+                    f"Score: {score:.4f} | model={model_is_anomaly} | label={label_is_anomaly} | "
+                    f"{inference_ms:.2f}ms | {fw_str}"
                 )
             else:
                 if beat_count % 20 == 0:
                     log.info(
-                        f"✓ NORMAL  | [{device_id}] Beat #{beat_id} | "
+                        f"[NORMAL] [{device_id}] Beat #{beat_id} | "
                         f"Score: {score:.4f} | {inference_ms:.2f}ms | [filtered]"
                     )
 
+            stats.record_waveform(
+                device_id=device_id,
+                beat_id=beat_id,
+                true_label=true_label,
+                anomaly_score=score,
+                inference_ms=inference_ms,
+                ecg_signal=ecg_features.tolist(),
+            )
             stats.record(device_id, is_anomaly, forwarded, inference_ms)
             beat_count += 1
 
@@ -349,10 +382,12 @@ def handle_client(conn, addr, model, scaler, pca,
 def run_stats_server(stats: FogStats, port: int = 9001):
     """Expose fog stats as a JSON API on port 9001."""
     from http.server import BaseHTTPRequestHandler, HTTPServer
+    from urllib.parse import urlparse
 
     class StatsHandler(BaseHTTPRequestHandler):
         def do_GET(self):
-            if self.path.rstrip("/") in ("/stats", ""):
+            path = urlparse(self.path).path.rstrip("/")
+            if path in ("/stats", ""):
                 data = json.dumps(stats.report()).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -387,7 +422,7 @@ def main():
                         help="Print decryption steps per packet (demo mode)")
     args = parser.parse_args()
 
-    log.info("═══════════════════════════════════════════════════")
+    log.info("===================================================")
     log.info("  FOG GATEWAY NODE STARTED (DA-3)")
     log.info("  Key Exchange : Diffie-Hellman (RFC 3526 Group 14)")
     log.info("  Encryption   : Pure-Python AES-256-CBC (no deps)")
@@ -395,7 +430,7 @@ def main():
     log.info("  Model        : Isolation Forest (TinyML-Ready)")
     log.info(f"  Listening    : {args.fog_host}:{args.fog_port}")
     log.info(f"  Cloud target : {args.cloud_host}:{args.cloud_port}")
-    log.info("═══════════════════════════════════════════════════")
+    log.info("===================================================")
 
     model, scaler, pca = load_ml_model()
     stats = FogStats()

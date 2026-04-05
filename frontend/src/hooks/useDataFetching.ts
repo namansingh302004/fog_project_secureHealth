@@ -1,18 +1,12 @@
 import { useState, useEffect } from 'react';
-import type { Alert } from '../types';
+import type { Alert, FogStats } from '../types';
 
 const CLOUD_API = 'http://127.0.0.1:8080/api';
 const FOG_STATS = 'http://127.0.0.1:9001/stats';
-const REFRESH_MS = 2000;
+const REFRESH_MS = 500;
 
 interface Stats {
   total_alerts: number;
-  avg_inference_ms: number;
-}
-
-interface FogStats {
-  total_beats: number;
-  bandwidth_saved_pct: number;
   avg_inference_ms: number;
 }
 
@@ -26,12 +20,13 @@ export const useDataFetching = () => {
   useEffect(() => {
     const fetchAlerts = async () => {
       try {
-        const res = await fetch(`${CLOUD_API}/alerts?limit=30`, { signal: AbortSignal.timeout(3000) });
+        const res = await fetch(`${CLOUD_API}/alerts?limit=30&t=${Date.now()}`, {
+          signal: AbortSignal.timeout(3000),
+          cache: 'no-store',
+        });
         const data = await res.json();
         setCloudOnline(true);
-        if (data.length) {
-          setAlerts(data);
-        }
+        setAlerts(data);
       } catch (e) {
         setCloudOnline(false);
       }
@@ -39,7 +34,10 @@ export const useDataFetching = () => {
 
     const fetchStats = async () => {
       try {
-        const res = await fetch(`${CLOUD_API}/stats`, { signal: AbortSignal.timeout(3000) });
+        const res = await fetch(`${CLOUD_API}/stats?t=${Date.now()}`, {
+          signal: AbortSignal.timeout(3000),
+          cache: 'no-store',
+        });
         const data = await res.json();
         setCloudOnline(true);
         setStats(data);
@@ -50,7 +48,10 @@ export const useDataFetching = () => {
 
     const fetchFogStats = async () => {
       try {
-        const res = await fetch(FOG_STATS, { signal: AbortSignal.timeout(2000) });
+        const res = await fetch(`${FOG_STATS}?t=${Date.now()}`, {
+          signal: AbortSignal.timeout(2000),
+          cache: 'no-store',
+        });
         const data = await res.json();
         setFogOnline(true);
         setFogStats(data);
