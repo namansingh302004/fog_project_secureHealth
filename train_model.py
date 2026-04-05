@@ -279,6 +279,97 @@ def _get_file_size_kb(path):
         return 0.0
 
 
+def export_onnx(model, scaler, pca, metrics):
+    """
+    Export the full sklearn pipeline (StandardScaler → PCA → IsolationForest)
+    to ONNX format for bare-metal execution on Raspberry Pi / microcontrollers.
+
+    Requires: pip install skl2onnx onnxruntime
+    Gracefully skips if the libraries are not installed.
+
+    Why ONNX?
+      - Eliminates scikit-learn dependency on the deployment device
+      - Enables execution via ONNX Runtime (C++ engine) — ~3–5× faster
+      - Supports INT8 quantisation for microcontrollers (Arduino Nano 33)
+      - Single .onnx file replaces three .pkl files
+    """
+    try:
+        from skl2onnx import convert_sklearn
+        from skl2onnx.common.data_types import FloatTensorType
+        from sklearn.pipeline import Pipeline
+        import onnxruntime as rt
+        import numpy as np
+
+        print("\n[ONNX] Exporting sklearn pipeline to ONNX format...")
+
+        # Build a single unified pipeline for clean ONNX export
+        pipeline = Pipeline([
+            ("scaler", scaler),
+            ("pca",    pca),
+            ("model",  model),
+        ])
+
+        # Define input: batch of 187-feature ECG vectors (float32)
+        initial_type = [("ecg_input", FloatTensorType([None, 187]))]
+
+        onnx_model = convert_sklearn(
+            pipeline,
+            initial_types=initial_type,
+            target_opset=17,
+        )
+
+        onnx_path = os.path.join(MODEL_SAVE_PATH, "isolation_forest_pipeline.onnx")
+        with open(onnx_path, "wb") as f:
+            f.write(onnx_model.SerializeToString())
+
+        onnx_kb = _get_file_size_kb(onnx_path)
+        print(f"[ONNX] ✓ Exported → {onnx_path}  ({onnx_kb:.1f} KB)")
+
+        # Validate the ONNX model with a test inference
+        sess = rt.InferenceSession(onnx_path)
+        input_name  = sess.get_inputs()[0].name
+        output_name = sess.get_outputs()[0].name
+
+        dummy_input = np.random.randn(1, 187).astype(np.float32)
+        result = sess.run([output_name], {input_name: dummy_input})
+        prediction = result[0][0]  # +1 normal, -1 anomaly
+
+        print(f"[ONNX] ✓ Validation inference passed — prediction: {prediction}")
+        print(f"[ONNX]   Input : (1, 187) float32 ECG features")
+        print(f"[ONNX]   Output: {prediction}  (+1=Normal, -1=Anomaly)")
+        print(f"[ONNX]   File  : {onnx_path}  ({onnx_kb:.1f} KB)")
+        print(f"[ONNX]   Replaces: isolation_forest.pkl + scaler.pkl + pca.pkl")
+
+        # Update metadata
+        metadata_path = os.path.join(MODEL_SAVE_PATH, "model_metadata.json")
+        if os.path.exists(metadata_path):
+            with open(metadata_path) as f:
+                meta = json.load(f)
+            meta["onnx_export"] = {
+                "path":       onnx_path,
+                "size_kb":    onnx_kb,
+                "opset":      17,
+                "validated":  True,
+                "runtime":    "onnxruntime",
+                "note":       "Use for Raspberry Pi / bare-metal deployment"
+            }
+            with open(metadata_path, "w") as f:
+                json.dump(meta, f, indent=2)
+            print(f"[ONNX] Metadata updated: {metadata_path}")
+
+        return True
+
+    except ImportError:
+        print("\n[ONNX] skl2onnx or onnxruntime not installed — skipping ONNX export.")
+        print("[ONNX] To enable: pip install skl2onnx onnxruntime")
+        print("[ONNX] (Not required for local simulation — only for RPi deployment)")
+        return False
+    except Exception as e:
+        print(f"\n[ONNX] Export failed: {e}")
+        print("[ONNX] Continuing without ONNX export.")
+        return False
+
+
 def tinyml_suitability_report(model, scaler, pca, metrics):
     """Print a TinyML/Edge suitability analysis."""
     model_kb = _get_file_size_kb(os.path.join(MODEL_SAVE_PATH, "isolation_forest.pkl"))
@@ -340,7 +431,10 @@ def main():
     # 5. Save
     save_model(model, scaler, pca, metrics)
 
-    # 6. TinyML Report
+    # 6. ONNX Export (for Raspberry Pi / bare-metal deployment)
+    export_onnx(model, scaler, pca, metrics)
+
+    # 7. TinyML Report
     tinyml_suitability_report(model, scaler, pca, metrics)
 
     print("\n[DONE]  Run fog_gateway.py to start the fog node.")
