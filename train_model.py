@@ -315,7 +315,7 @@ def export_onnx(model, scaler, pca, metrics):
         onnx_model = convert_sklearn(
             pipeline,
             initial_types=initial_type,
-            target_opset=17,
+            target_opset={'': 17, 'ai.onnx.ml': 3},
         )
 
         onnx_path = os.path.join(MODEL_SAVE_PATH, "isolation_forest_pipeline.onnx")

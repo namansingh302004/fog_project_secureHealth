@@ -45,6 +45,7 @@ env/
 .venv/
 pip-log.txt
 pip-delete-this-directory.txt
+.ipynb_checkpoints/
 
 # -----------------------------
 # OS & Editor Specific
@@ -52,3 +53,72 @@ pip-delete-this-directory.txt
 .vscode/
 .DS_Store
 Thumbs.db
+
+
+# -----------------------------
+# MQTT for Thingsboard Cloud
+# -----------------------------
+test_mqtt.py
+
+# -----------------------------
+# Frontend and Node.js
+# -----------------------------
+node_modules/
+dist/
+build/
+.next/
+.server/
+.client/
+.temp/
+.cache/
+*.local
+
+# -----------------------------
+# Data and Machine Learning
+# -----------------------------
+data/
+*.csv
+model/
+*.pkl
+
+# -----------------------------
+# Security & Secrets
+# -----------------------------
+# Prevent uploading AES/HMAC keys or environment variables
+*.bin
+.env
+secret*
+
+# -----------------------------
+# Logs
+# -----------------------------
+logs/
+*.log
+
+# -----------------------------
+# Python Specific
+# -----------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+env/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# -----------------------------
+# OS & Editor Specific
+# -----------------------------
+.vscode/
+.DS_Store
+Thumbs.db
+
+
+# -----------------------------
+# key files, if any
+# -----------------------------
+*.pem
+*.crt
+*.key

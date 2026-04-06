@@ -36,9 +36,26 @@ import socket
 import struct
 import threading
 import time
+from dotenv import load_dotenv
 from collections import deque
 from datetime import UTC, datetime
 from http.client import HTTPConnection
+
+
+import paho.mqtt.client as mqtt #Thingsboard
+
+load_dotenv()
+
+# --- ThingsBoard MQTT Configuration ---
+THINGSBOARD_HOST = "mqtt.thingsboard.cloud" # Or your specific host
+ACCESS_TOKEN = os.environ.get("THINGSBOARD_TOKEN")
+if not ACCESS_TOKEN:
+    print("[ERROR] THINGSBOARD_TOKEN not found in .env file!")
+    exit(1)
+TELEMETRY_TOPIC = "v1/devices/me/telemetry"
+
+# Global MQTT Client
+tb_client = None
 
 import numpy as np
 
@@ -333,6 +350,16 @@ def handle_client(conn, addr, model, scaler, pca,
                 }
                 forwarded = forward_to_cloud(alert, cloud_host, cloud_port)
                 fw_str = "TO CLOUD OK" if forwarded else "TO CLOUD FAILED"
+
+                # THINGSBOARD ADDED: Instantly push the alert to ThingsBoard via MQTT
+                tb_alert = {
+                    "critical_alert": True,
+                    "anomaly_score": float(score),
+                    "label": LABEL_MAP.get(true_label, "Unknown"),
+                    "device_id": device_id
+                }
+                publish_telemetry(tb_alert)
+
                 log.warning(
                     f"[ALERT] [{device_id}] Beat #{beat_id} | "
                     f"{LABEL_MAP.get(true_label,'?')} | "
@@ -405,7 +432,52 @@ def run_stats_server(stats: FogStats, port: int = 9001):
     log.info(f"Fog stats API: http://0.0.0.0:{port}/stats")
     server.serve_forever()
 
+# ─────────────────────────────────────────────────────────────────
+#  ThingsBoard
+# ─────────────────────────────────────────────────────────────────
 
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        print("[MQTT] Successfully connected to ThingsBoard!")
+    else:
+        print(f"[MQTT] Connection failed with code {rc}")
+
+def setup_mqtt():
+    global tb_client
+    tb_client = mqtt.Client()
+    # ThingsBoard uses the Access Token as the MQTT username
+    tb_client.username_pw_set(ACCESS_TOKEN) 
+    tb_client.on_connect = on_connect
+    
+    try:
+        # Port 1883 is standard MQTT. (Use 8883 for TLS/SSL if you want extra security points)
+        tb_client.connect(THINGSBOARD_HOST, 1883, 60)
+        # Starts a background thread to handle network traffic and pinging
+        tb_client.loop_start() 
+    except Exception as e:
+        print(f"[MQTT] Failed to connect: {e}")
+
+def publish_telemetry(data: dict):
+    """Pushes a JSON payload to ThingsBoard via MQTT."""
+    if tb_client and tb_client.is_connected():
+        tb_client.publish(TELEMETRY_TOPIC, json.dumps(data), qos=1)
+
+
+def run_tb_telemetry_loop(stats):
+    """Background thread to push aggregate gateway stats to ThingsBoard."""
+    while True:
+        # Pull the latest calculated metrics from your existing FogStats class
+        r = stats.report() 
+        
+        tb_stats = {
+            "uptime_seconds": r["uptime_s"],
+            "bandwidth_saved_pct": r["bandwidth_saved_pct"],
+            "avg_inference_ms": r["avg_inference_ms"],
+            "active_edge_nodes": r["active_devices"],
+            "total_beats_processed": r["total_beats"]
+        }
+        publish_telemetry(tb_stats)
+        time.sleep(5)  # Push every 5 seconds
 # ─────────────────────────────────────────────────────────────────
 #  Main
 # ─────────────────────────────────────────────────────────────────
@@ -435,11 +507,18 @@ def main():
     model, scaler, pca = load_ml_model()
     stats = FogStats()
 
-    # Stats API in background thread
+# --- START MQTT & THINGSBOARD TELEMETRY ---
+    setup_mqtt()
+    threading.Thread(
+        target=run_tb_telemetry_loop, args=(stats,), daemon=True
+    ).start()
+
+    # Stats API in background thread (Your existing React Cloud API)
     threading.Thread(
         target=run_stats_server, args=(stats, args.stats_port), daemon=True
     ).start()
 
+    
     # Main TCP listener
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -461,6 +540,7 @@ def main():
     finally:
         server_sock.close()
         log.info(f"Final stats:\n{json.dumps(stats.report(), indent=2)}")
+
 
 
 if __name__ == "__main__":
