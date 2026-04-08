@@ -5,30 +5,15 @@ Implements Diffie-Hellman key exchange from scratch (pure Python)
 to dynamically negotiate AES-256 and HMAC-256 session keys between
 the Edge sensor and Fog Gateway at connection time.
 
-This directly addresses the critical vulnerability named in DA-2:
-  "AES and HMAC keys are pre-shared and stored statically
-   (shared_aes_key.bin), creating a vulnerability if a single
-   edge node is compromised."
-
-With DH:
-  - Fresh session keys are generated per connection
-  - Compromise of one session does NOT expose other sessions
-  - No static key files need to exist on disk
-  - The fog and edge never transmit the actual keys — only
-    public values from which both sides derive the same secret
-
-Protocol:
-  1. Edge connects to Fog over TCP
-  2. Edge sends its DH public key (4 bytes length + raw bytes)
-  3. Fog sends its DH public key back
-  4. Both sides compute the shared secret independently
-  5. HKDF (SHA-256) derives two 32-byte keys: AES key + HMAC key
-  6. All subsequent packets use these session keys
-
-Security Parameters:
-  - Group: RFC 3526 Group 14 (2048-bit MODP) — standard, well-analysed
-  - Generator: g = 2
-  - Key derivation: HKDF with SHA-256, separate info strings for AES/HMAC
+BUG FIXED IN THIS VERSION:
+  [FIX] Weak DH public key length validation in recv_pubkey():
+        The original check `if length > 512` accepted any value up to 512.
+        RFC 3526 Group 14 public keys are always exactly 256 bytes.
+        A value of, say, 300 or 1 would be accepted and then cause a
+        silent integer deserialization error later. The fix rejects any
+        length that is not exactly 256, which is the only valid size for
+        this group. This hardens the handshake against malformed or
+        malicious packets that might probe the key exchange layer.
 """
 
 import hashlib
@@ -38,8 +23,6 @@ import struct
 
 # ─────────────────────────────────────────────────────────────────
 #  RFC 3526 Group 14 — 2048-bit MODP Prime
-#  This is a standardized safe prime used widely in TLS/SSH.
-#  Using a well-known prime avoids weak-group vulnerabilities.
 # ─────────────────────────────────────────────────────────────────
 DH_PRIME_HEX = (
     "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1"
@@ -54,13 +37,15 @@ DH_PRIME_HEX = (
     "DE2BCBF6955817183995497CEA956AE515D2261898FA0510"
     "15728E5A8AACAA68FFFFFFFFFFFFFFFF"
 )
-DH_PRIME  = int(DH_PRIME_HEX, 16)
+DH_PRIME     = int(DH_PRIME_HEX, 16)
 DH_GENERATOR = 2
+
+# The Group 14 prime is 2048 bits = exactly 256 bytes when serialised.
+DH_KEY_BYTES = 256
 
 
 # ─────────────────────────────────────────────────────────────────
 #  HKDF (RFC 5869) — pure Python, SHA-256 based
-#  Used to derive AES and HMAC keys from the DH shared secret.
 # ─────────────────────────────────────────────────────────────────
 
 def _hkdf_extract(salt: bytes, ikm: bytes) -> bytes:
@@ -91,16 +76,15 @@ def hkdf_derive(shared_secret: int, salt: bytes = None) -> tuple:
     Returns:
         (aes_key: bytes[32], hmac_key: bytes[32])
     """
-    # Convert shared secret integer to bytes (big-endian, 256 bytes for 2048-bit)
-    ikm = shared_secret.to_bytes(256, "big")
+    ikm = shared_secret.to_bytes(DH_KEY_BYTES, "big")
 
     if salt is None:
         salt = b"SecureFogECG-DH-Salt-v1"
 
     prk = _hkdf_extract(salt, ikm)
 
-    aes_key  = _hkdf_expand(prk, b"aes-256-cbc-key",  32)
-    hmac_key = _hkdf_expand(prk, b"hmac-sha256-key",  32)
+    aes_key  = _hkdf_expand(prk, b"aes-256-cbc-key", 32)
+    hmac_key = _hkdf_expand(prk, b"hmac-sha256-key", 32)
 
     return aes_key, hmac_key
 
@@ -122,15 +106,14 @@ class DHParty:
 
     def __init__(self):
         # Private key: cryptographically random 256-byte integer
-        self._private = int.from_bytes(os.urandom(256), "big") % (DH_PRIME - 2) + 2
+        self._private = int.from_bytes(os.urandom(DH_KEY_BYTES), "big") % (DH_PRIME - 2) + 2
         # Public key: g^private mod p
         self.public_key = pow(DH_GENERATOR, self._private, DH_PRIME)
 
     def compute_shared(self, their_public: int) -> int:
         """
         Compute the DH shared secret from the other party's public key.
-        Result: their_public^private mod p
-        Both parties arrive at the same value independently.
+        Validates the received key to detect MitM / malformed packets.
         """
         if not (2 <= their_public <= DH_PRIME - 2):
             raise ValueError("Received invalid DH public key — possible MitM attack")
@@ -144,16 +127,26 @@ class DHParty:
 
 def send_pubkey(sock: socket.socket, public_key: int):
     """Serialise and send a DH public key over a socket."""
-    key_bytes = public_key.to_bytes(256, "big")
+    key_bytes = public_key.to_bytes(DH_KEY_BYTES, "big")
     sock.sendall(struct.pack(">I", len(key_bytes)) + key_bytes)
 
 
 def recv_pubkey(sock: socket.socket) -> int:
-    """Receive and deserialise a DH public key from a socket."""
+    """
+    Receive and deserialise a DH public key from a socket.
+
+    FIX: The original check was `if length > 512` which silently accepted
+    any size from 1–512. Group 14 keys are always exactly DH_KEY_BYTES (256).
+    We now reject anything that is not the expected length, which prevents
+    silent integer deserialization from wrong-sized byte buffers.
+    """
     raw_len = _recv_exact(sock, 4)
     length  = struct.unpack(">I", raw_len)[0]
-    if length > 512:
-        raise ValueError(f"DH public key length suspiciously large: {length}")
+    if length != DH_KEY_BYTES:
+        raise ValueError(
+            f"DH public key length invalid: got {length}, expected {DH_KEY_BYTES}. "
+            "Possible protocol mismatch or MitM probe."
+        )
     key_bytes = _recv_exact(sock, length)
     return int.from_bytes(key_bytes, "big")
 
@@ -243,7 +236,7 @@ def _self_test():
     aes_a, hmac_a = hkdf_derive(alice_shared)
     aes_b, hmac_b = hkdf_derive(bob_shared)
 
-    assert aes_a == aes_b,  "AES keys do not match!"
+    assert aes_a == aes_b,   "AES keys do not match!"
     assert hmac_a == hmac_b, "HMAC keys do not match!"
     print(f"  AES key  : {aes_a.hex()[:16]}... ✓")
     print(f"  HMAC key : {hmac_a.hex()[:16]}... ✓")

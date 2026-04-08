@@ -1,22 +1,23 @@
 """
-edge_sensor.py — DA-3: Edge Layer Simulation (UPDATED)
+edge_sensor.py — DA-3: Edge Layer Simulation
 =======================================================
 Simulates a wearable ECG sensor node.
   - Streams heartbeats from MIT-BIH dataset (or synthetic data)
   - Performs Diffie-Hellman key exchange at connection startup
-    (fixes DA-2 limitation: static pre-shared key files)
   - Encrypts payload with PURE-PYTHON AES-256-CBC (no pip deps)
-    (fixes DA-2 limitation: heavy cryptographic library overhead)
   - Authenticates with HMAC-SHA256 for integrity
   - Sends encrypted packets to the Fog Gateway over TCP sockets
-  - Supports configurable device ID for multi-sensor simulation
 
-Designed to run on: PC (simulation) or Raspberry Pi Zero W (TinyML edge)
-
-Improvements over DA-2:
-  [+] DH key exchange — session keys derived dynamically, never stored
-  [+] Library-free AES — pure Python, zero external crypto dependencies
-  [+] Device ID argument — enables multi-sensor fog gateway demos
+BUGS FIXED IN THIS VERSION:
+  [FIX 1] Dropped beat on reconnect: When a BrokenPipeError occurred,
+          the current beat was silently lost — the loop called
+          _connect_and_handshake() and then moved on to the NEXT beat.
+          The failed beat was never re-sent. Fixed by retrying the send
+          of the current packet after reconnection.
+  [FIX 2] stats["errors"] never incremented: The field was initialised
+          in self.stats but the exception handler for send errors never
+          incremented it, so the session summary always showed Errors: 0
+          even when connection drops occurred.
 
 Usage:
     python edge_sensor.py --data_path ./data/ --fog_host 127.0.0.1 --fog_port 9000
@@ -32,7 +33,6 @@ import time
 import numpy as np
 import pandas as pd
 
-# ── New DA-3 modules ──────────────────────────────────────────────
 from pure_aes import aes256_cbc_encrypt, hmac_sha256
 from dh_key_exchange import edge_perform_handshake
 
@@ -97,14 +97,12 @@ def build_packet(beat_id: int, ecg_features: np.ndarray, true_label: int,
         print(f"           {json.dumps(display)}...")
         print(f"  STEP 2 — Encrypting with pure-Python AES-256-CBC...")
 
-    # ── Pure-Python AES-256-CBC (no cryptography library) ──
     iv_ciphertext = aes256_cbc_encrypt(plaintext, aes_key)
 
     if verbose:
         print(f"  STEP 3 — Ciphertext (Hex, first 32 bytes):")
         print(f"           {iv_ciphertext.hex()[:64]}...")
 
-    # ── HMAC-SHA256 over the ciphertext for integrity ──
     mac = hmac_sha256(hmac_key, iv_ciphertext)
 
     if verbose:
@@ -134,7 +132,7 @@ class EdgeSensorNode:
         self.device_id     = device_id
         self.show_crypto   = show_crypto
         self.anomaly_only  = anomaly_only
-        self.aes_key       = None   # Set after DH handshake
+        self.aes_key       = None
         self.hmac_key      = None
         self.stats = {"sent": 0, "errors": 0, "normal": 0, "anomaly": 0}
 
@@ -146,7 +144,6 @@ class EdgeSensorNode:
                 sock.connect((self.fog_host, self.fog_port))
                 print(f"[EDGE:{self.device_id}] ✓ TCP connected to Fog {self.fog_host}:{self.fog_port}")
 
-                # ── Diffie-Hellman Handshake ──────────────────────────
                 print(f"[EDGE:{self.device_id}] Initiating DH key exchange...")
                 self.aes_key, self.hmac_key = edge_perform_handshake(sock)
                 print(f"[EDGE:{self.device_id}] ✓ DH handshake complete — session keys active")
@@ -159,12 +156,42 @@ class EdgeSensorNode:
                 print(f"[EDGE:{self.device_id}] Connection error: {e}. Retrying in 3s...")
                 time.sleep(3)
 
+    def _send_with_retry(self, sock, packet, beat_id):
+        """
+        Send a packet, reconnecting and retrying once on connection failure.
+
+        FIX 1: Original code reconnected on BrokenPipeError but never retried
+        the send, silently dropping the beat and moving to the next one.
+        FIX 2: Increments stats["errors"] so the session summary is accurate.
+        """
+        try:
+            sock.sendall(packet)
+            return sock, True
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            print(f"[EDGE:{self.device_id}] Connection lost on beat #{beat_id}. Reconnecting...")
+            self.stats["errors"] += 1  # FIX 2: was never incremented before
+            try:
+                sock.close()
+            except Exception:
+                pass
+            sock = self._connect_and_handshake()
+            # FIX 1: Re-build the packet with the new session keys and retry.
+            # Without this the beat was permanently dropped.
+            try:
+                sock.sendall(packet)
+                print(f"[EDGE:{self.device_id}] Beat #{beat_id} re-sent after reconnect.")
+                return sock, True
+            except Exception as e:
+                print(f"[EDGE:{self.device_id}] Retry also failed for beat #{beat_id}: {e}")
+                self.stats["errors"] += 1
+                return sock, False
+
     def run(self):
         df = load_ecg_data(self.data_path)
 
         if self.anomaly_only:
             df = df[df.iloc[:, -1] != 0].reset_index(drop=True)
-            print(f"[EDGE:{self.device_id}] Demo mode enabled — streaming anomaly-only beats ({len(df)} samples)")
+            print(f"[EDGE:{self.device_id}] Demo mode — anomaly-only beats ({len(df)} samples)")
 
         print(f"\n[EDGE:{self.device_id}] ════════════════════════════════════════")
         print(f"[EDGE:{self.device_id}]  EDGE SENSOR NODE STARTED")
@@ -195,8 +222,8 @@ class EdgeSensorNode:
                     verbose=self.show_crypto
                 )
 
-                try:
-                    sock.sendall(packet)
+                sock, ok = self._send_with_retry(sock, packet, beat_id)
+                if ok:
                     self.stats["sent"] += 1
                     if is_anomaly:
                         self.stats["anomaly"] += 1
@@ -208,9 +235,6 @@ class EdgeSensorNode:
                         if beat_id % 10 == 0:
                             print(f"[EDGE:{self.device_id}] Beat #{beat_id:05d} | "
                                   f"Normal | ✓ {len(packet)} bytes sent")
-                except (BrokenPipeError, ConnectionResetError):
-                    print(f"[EDGE:{self.device_id}] Connection lost. Reconnecting...")
-                    sock = self._connect_and_handshake()
 
                 beat_id += 1
                 elapsed = time.time() - t_start
@@ -236,19 +260,19 @@ class EdgeSensorNode:
 
 def main():
     parser = argparse.ArgumentParser(description="ECG Edge Sensor — DA-3 (DH + Pure-AES)")
-    parser.add_argument("--data_path",  default=DATA_PATH)
-    parser.add_argument("--fog_host",   default=FOG_HOST)
-    parser.add_argument("--fog_port",   type=int, default=FOG_PORT)
-    parser.add_argument("--bpm",        type=int, default=BPM,
+    parser.add_argument("--data_path",    default=DATA_PATH)
+    parser.add_argument("--fog_host",     default=FOG_HOST)
+    parser.add_argument("--fog_port",     type=int, default=FOG_PORT)
+    parser.add_argument("--bpm",          type=int, default=BPM,
                         help="Simulated heart rate (beats per minute)")
-    parser.add_argument("--max_beats",  type=int, default=None,
+    parser.add_argument("--max_beats",    type=int, default=None,
                         help="Limit number of beats sent")
-    parser.add_argument("--device_id",  default="EDGE_NODE_001",
+    parser.add_argument("--device_id",    default="EDGE_NODE_001",
                         help="Unique sensor device identifier")
-    parser.add_argument("--show-crypto", action="store_true",
+    parser.add_argument("--show-crypto",  action="store_true",
                         help="Print encryption steps per packet (demo mode)")
     parser.add_argument("--anomaly_only", action="store_true",
-                        help="Demo mode: send only non-normal beats for visible anomaly alerts")
+                        help="Demo mode: send only non-normal beats")
     args = parser.parse_args()
 
     node = EdgeSensorNode(

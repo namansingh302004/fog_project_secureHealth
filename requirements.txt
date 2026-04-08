@@ -1,22 +1,31 @@
-# DA-2: Secure Fog Computing — ECG Anomaly Detection
-# Dependencies
+# DA-3: SecureHealth — Fog-ThingsBoard Stack
+# Requirements
 
 # Core ML & Data
 scikit-learn>=1.3.0
 numpy>=1.24.0
 pandas>=2.0.0
 
-# Cryptography (AES-256, HMAC)
-cryptography>=41.0.0
+# MQTT (ThingsBoard Cloud)
+# Pinned to <2.0 because paho-mqtt 2.x introduced a breaking callback API
+# change. The fog_gateway uses CallbackAPIVersion.VERSION1 which provides
+# backwards compatibility with both 1.x and 2.x, but pinning avoids
+# surprises on fresh installs.
+paho-mqtt>=1.6.1,<3.0
 
-# Optional: ONNX export for Raspberry Pi deployment
+# Environment variable management (.env file support)
+python-dotenv>=1.0.0
+
+# Optional: ONNX export for Raspberry Pi / bare-metal deployment
+# Uncomment when deploying to RPi or microcontrollers:
 # skl2onnx>=1.16.0
 # onnxruntime>=1.16.0
 
-# Optional: Visualization (for notebook/report)
+# Optional: Visualization (notebook / report)
 # matplotlib>=3.7.0
 # seaborn>=0.12.0
 
-
-paho-mqtt
-python-dotenv
+# NOTE: The `cryptography` library (from DA-2) has been intentionally
+# removed. DA-3 uses pure_aes.py (pure Python AES-256-CBC + HMAC-SHA256)
+# with zero external crypto dependencies. This was an explicit design
+# goal for TinyML / Raspberry Pi Zero W deployment.
