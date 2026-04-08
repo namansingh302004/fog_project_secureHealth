@@ -350,17 +350,19 @@ def handle_client(conn, addr, model, scaler, pca,
                     "inference_ms":  inference_ms,
                     "alert_type":    "CARDIAC_ANOMALY"
                 }
-                forwarded = forward_to_cloud(alert, cloud_host, cloud_port)
-                fw_str = "TO CLOUD OK" if forwarded else "TO CLOUD FAILED"
+                # forwarded = forward_to_cloud(alert, cloud_host, cloud_port)
+                # fw_str = "TO CLOUD OK" if forwarded else "TO CLOUD FAILED"
 
                 # THINGSBOARD: Send a realistic, unclassified alert
                 tb_alert = {
                     "critical_alert": True,
                     "anomaly_score": float(score),
-                    "label": "Potential Arrhythmia Detected", # Cannot specify exact PVC/Fusion etc.
-                    "device_id": device_id
+                    "label": "Potential Arrhythmia Detected", 
+                    "device_id": device_id,
+                    "ecg_signal": ecg_features.tolist() # <--- ADD THIS LINE!
                 }
-                publish_telemetry(tb_alert)
+                publish_telemetry(tb_alert, device_name=device_id)
+                publish_telemetry(tb_alert, device_name=device_id)
 
                 # Local terminal log (keeps true label so you can verify if the model was right)
                 log.warning(
@@ -461,10 +463,16 @@ def setup_mqtt():
     except Exception as e:
         print(f"[MQTT] Failed to connect: {e}")
 
-def publish_telemetry(data: dict):
+def publish_telemetry(data: dict, device_name: str = None):
     """Pushes a JSON payload to ThingsBoard via MQTT."""
     if tb_client and tb_client.is_connected():
-        tb_client.publish(TELEMETRY_TOPIC, json.dumps(data), qos=1)
+        if device_name:
+            # Route as a separate edge patient device (The Gateway API)
+            payload = {device_name: [{"values": data}]}
+            tb_client.publish("v1/gateway/telemetry", json.dumps(payload), qos=1)
+        else:
+            # Route stats to the Fog Gateway itself
+            tb_client.publish("v1/devices/me/telemetry", json.dumps(data), qos=1)
 
 
 def run_tb_telemetry_loop(stats):
@@ -480,7 +488,7 @@ def run_tb_telemetry_loop(stats):
             "active_edge_nodes": r["active_devices"],
             "total_beats_processed": r["total_beats"]
         }
-        publish_telemetry(tb_stats)
+        publish_telemetry(tb_stats) # Leave this empty so it goes to the gateway!   
         time.sleep(5)  # Push every 5 seconds
 # ─────────────────────────────────────────────────────────────────
 #  Main

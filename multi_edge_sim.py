@@ -10,6 +10,7 @@ Enhancements in this version:
   [+] Zombie Prevention: Graceful SIGINT handling to safely kill child processes.
   [+] Realistic Jitter: Introduces slight BPM variations to mimic real human hearts.
   [+] Dynamic Payload Routing: Passes the critical flag directly to the Edge node.
+  [+] Full CLI Sync: Inherits --anomaly_only, --bpm, and --show-crypto from edge_sensor.
 """
 
 import argparse
@@ -40,8 +41,6 @@ def run_sensor(device_id, bpm, is_critical, data_path, fog_host, fog_port, max_b
     actual_bpm = bpm + random.randint(-5, 5)
     
     try:
-        # NOTE: Ensure your EdgeSensorNode `__init__` accepts 'anomaly_only'
-        # If it doesn't, remove `anomaly_only=is_critical` from this call.
         node = EdgeSensorNode(
             data_path   = data_path,
             fog_host    = fog_host,
@@ -71,6 +70,14 @@ def main():
     parser.add_argument("--max_beats",   type=int, default=500)
     parser.add_argument("--stagger_ms",  type=int, default=150,
                         help="Milliseconds to wait between booting sensors")
+    
+    # --- New Arguments Synced from edge_sensor.py ---
+    parser.add_argument("--bpm", type=int, default=None,
+                        help="Base heart rate. If not set, randomizes between 60-100 per node")
+    parser.add_argument("--show-crypto", action="store_true",
+                        help="Print encryption steps per packet for ALL nodes (Warning: spammy)")
+    parser.add_argument("--anomaly_only", action="store_true",
+                        help="Force ALL spawned sensors into anomaly_only mode")
     args = parser.parse_args()
 
     print(f"{CYAN}{BOLD}═" * 65)
@@ -78,7 +85,8 @@ def main():
     print("═" * 65 + f"{RESET}")
     print(f"  Target         : {BOLD}{args.fog_host}:{args.fog_port}{RESET}")
     print(f"  Total Sensors  : {BOLD}{args.num_sensors}{RESET} (Independent Processes)")
-    print(f"  Stagger Delay  : {args.stagger_ms}ms (Preventing TCP Socket exhaustion)")
+    print(f"  Stagger Delay  : {args.stagger_ms}ms")
+    print(f"  Anomaly Mode   : {BOLD}{'ENABLED (All Critical)' if args.anomaly_only else 'Standard (15% Critical)'}{RESET}")
     print(f"{CYAN}═" * 65 + f"{RESET}")
 
     # 1. Generate Dynamic Patients
@@ -86,10 +94,13 @@ def main():
     critical_count = 0
     for i in range(args.num_sensors):
         patient_id = f"EDGE_NODE_{str(i+1).zfill(3)}"
-        base_bpm = random.randint(60, 100)
         
-        # ~15% chance a patient is generated as a "Critical" case for the dashboard
-        is_critical = random.random() < 0.15 
+        # Use provided BPM or generate a random one
+        base_bpm = args.bpm if args.bpm else random.randint(60, 100)
+        
+        # If --anomaly_only is passed, EVERY node is critical. Otherwise, 15% chance.
+        is_critical = True if args.anomaly_only else (random.random() < 0.15) 
+        
         if is_critical:
             critical_count += 1
             
@@ -107,7 +118,8 @@ def main():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
     for i, p in enumerate(patients):
-        show = (i == 0) # Only trace crypto for the first node to save terminal I/O
+        # Show crypto if flag is passed, otherwise only show it for the first node to prevent spam
+        show = True if args.show_crypto else (i == 0) 
         
         proc = multiprocessing.Process(
             target=run_sensor,
