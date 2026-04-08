@@ -326,44 +326,47 @@ def handle_client(conn, addr, model, scaler, pca,
 
             # ── ML Inference ─────────────────────────────────────
             result       = classify_beat(ecg_features, model, scaler, pca)
+            
+            # REAL WORLD: We rely entirely on the ML model's prediction
             model_is_anomaly = bool(result["is_anomaly"])
             inference_ms = result["inference_ms"]
             score        = result["anomaly_score"]
-            label_is_anomaly = bool(true_label in CRITICAL_LABELS)
-            is_anomaly = model_is_anomaly or label_is_anomaly
+            
+            # Extract true label ONLY for your local terminal debugging. 
+            # We will NOT use this to route the packet or label the cloud alert.
+            true_label   = pkt.get("true_label", -1) 
 
             # ── Routing Decision ─────────────────────────────────
             forwarded = False
-            if is_anomaly:
+            
+            # REAL WORLD ROUTING: Alert triggers ONLY if the model flags it
+            if model_is_anomaly: 
                 alert = {
                     "beat_id":       beat_id,
                     "timestamp":     pkt.get("timestamp", time.time()),
                     "fog_timestamp": time.time(),
                     "device_id":     device_id,
-                    "true_label":    true_label,
-                    "label_name":    LABEL_MAP.get(true_label, "Unknown"),
                     "anomaly_score": score,
                     "inference_ms":  inference_ms,
-                    "alert_type":    "CARDIAC_ANOMALY",
-                    "model_flagged": bool(model_is_anomaly),
-                    "label_flagged": bool(label_is_anomaly),
+                    "alert_type":    "CARDIAC_ANOMALY"
                 }
                 forwarded = forward_to_cloud(alert, cloud_host, cloud_port)
                 fw_str = "TO CLOUD OK" if forwarded else "TO CLOUD FAILED"
 
-                # THINGSBOARD ADDED: Instantly push the alert to ThingsBoard via MQTT
+                # THINGSBOARD: Send a realistic, unclassified alert
                 tb_alert = {
                     "critical_alert": True,
                     "anomaly_score": float(score),
-                    "label": LABEL_MAP.get(true_label, "Unknown"),
+                    "label": "Potential Arrhythmia Detected", # Cannot specify exact PVC/Fusion etc.
                     "device_id": device_id
                 }
                 publish_telemetry(tb_alert)
 
+                # Local terminal log (keeps true label so you can verify if the model was right)
                 log.warning(
                     f"[ALERT] [{device_id}] Beat #{beat_id} | "
-                    f"{LABEL_MAP.get(true_label,'?')} | "
-                    f"Score: {score:.4f} | model={model_is_anomaly} | label={label_is_anomaly} | "
+                    f"Ground Truth: {LABEL_MAP.get(true_label,'?')} | "
+                    f"Score: {score:.4f} | "
                     f"{inference_ms:.2f}ms | {fw_str}"
                 )
             else:
@@ -381,7 +384,8 @@ def handle_client(conn, addr, model, scaler, pca,
                 inference_ms=inference_ms,
                 ecg_signal=ecg_features.tolist(),
             )
-            stats.record(device_id, is_anomaly, forwarded, inference_ms)
+            # Record the stats using the model's unclassified decision
+            stats.record(device_id, model_is_anomaly, forwarded, inference_ms)
             beat_count += 1
 
             if beat_count % 100 == 0:
