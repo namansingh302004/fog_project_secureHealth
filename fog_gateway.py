@@ -320,20 +320,22 @@ def handle_client(conn, addr, model, scaler, pca,
             result           = classify_beat(ecg_features, model, scaler, pca)
             model_is_anomaly = bool(result["is_anomaly"])
             inference_ms     = result["inference_ms"]
-            score            = result["anomaly_score"]
+            
+            # FIX: Scale the score by 100 so it's not a tiny decimal
+            score            = result["anomaly_score"] * 100 
+            
+            # FIX: Extract the highest peak from the ECG signal to plot as a "Pulse"
+            ecg_peak         = float(np.max(ecg_features))
 
-            # ── Routing Decision ─────────────────────────────────
-            # Routing is driven SOLELY by the ML model's prediction.
             if model_is_anomaly:
                 tb_alert = {
                     "critical_alert": True,
-                    "anomaly_score":  float(score),
+                    "anomaly_score":  round(score, 2), # Now e.g., -14.5 instead of -0.145
+                    "ecg_peak":       round(ecg_peak, 3), # This will create your waveform
                     "label":          "Potential Arrhythmia Detected",
                     "device_id":      device_id,
                     "ecg_signal":     ecg_features.tolist(),
                 }
-                # FIX 2: Was called twice — each anomaly was published to
-                # ThingsBoard twice, creating duplicate dashboard entries.
                 publish_telemetry(tb_alert, device_name=device_id)
 
                 # FIX 1: fw_str was referenced here but only existed in a
@@ -471,7 +473,7 @@ def publish_telemetry(data: dict, device_name: str = None):
 
     if device_name:
         # Gateway API: auto-creates a separate ThingsBoard device per patient
-        payload = {device_name: [{"values": data}]}
+        payload = {device_name: [data]} 
         tb_client.publish("v1/gateway/telemetry", json.dumps(payload), qos=1)
     else:
         # Direct device API: posts to the fog gateway device itself
