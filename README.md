@@ -15,7 +15,7 @@ This project implements a **privacy-preserving, bandwidth-efficient** cardiac mo
 - **Real-time ECG Analysis:** Uses an **Isolation Forest** (TinyML-ready) to detect cardiac anomalies with <10ms latency.
 - **End-to-End Security:** Implements **Diffie-Hellman Key Exchange** for session keys, **AES-256-CBC** for encryption, and **HMAC-SHA256** for data integrity.
 - **Fog Intelligence:** Filters normal heartbeats locally at the hospital gateway, drastically reducing cloud storage and bandwidth costs.
-- **Interactive Dashboard:** A modern React-based monitoring interface for doctors to track live alerts and system health.
+- **Modern UI & Dashboards:** A meticulously crafted, minimalist React interface featuring high-contrast "editorial" typography, solid monolithic panels, and sophisticated data visualization.
 
 ---
 
@@ -24,7 +24,7 @@ This project implements a **privacy-preserving, bandwidth-efficient** cardiac mo
 ```mermaid
 graph TD
     subgraph "EDGE LAYER (Patient Site)"
-        A[ECG Sensor / edge_sensor.py] -->|187 features @ 125Hz| B(AES-256 Encryption)
+        A[ECG Sensor / backend/edge_sensor.py] -->|187 features @ 125Hz| B(AES-256 Encryption)
         B -->|Encrypted TCP Packet| C[Fog Gateway]
     end
 
@@ -43,9 +43,35 @@ graph TD
         H -->|Live Monitor| I[Web UI / React + Vite]
     end
 
-    style E fill:#d4edda,stroke:#28a745
-    style F fill:#f8d7da,stroke:#dc3545
-    style H fill:#cfe2ff,stroke:#0d6efd
+    style E fill:#F0F0F0,stroke:#80ED99,color:#111
+    style F fill:#F0F0F0,stroke:#ff4757,color:#111
+    style H fill:#FEFEFE,stroke:#111,color:#111
+```
+
+---
+
+## 📁 Project Structure
+
+The project has been refactored for a clean, domain-driven architecture:
+
+```text
+fog_project_secureHealth/
+├── backend/                  # Python Edge/Fog/Cloud logic
+│   ├── cloud_server.py       # Centralized storage & REST API
+│   ├── fog_gateway.py        # Hospital-side processor (Decryption + ML)
+│   ├── edge_sensor.py        # Simulates patient wearable (Encryption + DH)
+│   ├── multi_edge_sim.py     # Simulates multiple concurrent patients
+│   ├── pure_aes.py           # Pure-Python AES-256 and HMAC implementation
+│   ├── dh_key_exchange.py    # Diffie-Hellman handshake logic
+│   ├── train_model.py        # ML training pipeline & ONNX exporter
+│   └── requirements.txt      # Python dependencies
+├── frontend/                 # React + Vite Dashboard
+│   ├── src/                  # Modern UI implementation
+│   ├── package.json          
+│   └── vite.config.ts        
+├── vanilla_dashboard/        # Fallback HTML UI
+│   └── dashboard.html        # Lightweight vanilla JS alternative
+└── README.md                 # This documentation
 ```
 
 ---
@@ -62,18 +88,19 @@ graph TD
 
 1.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/your-username/fog_cardiac_system.git
-    cd fog_cardiac_system
+    git clone https://github.com/namansingh302004/fog_project_secureHealth.git
+    cd fog_project_secureHealth
     ```
 
 2.  **Install Python Dependencies:**
     ```bash
+    cd backend
     pip install -r requirements.txt
     ```
 
 3.  **Install Frontend Dependencies:**
     ```bash
-    cd frontend
+    cd ../frontend
     npm install
     cd ..
     ```
@@ -93,28 +120,33 @@ This project is designed to run locally for simulation. No external environment 
 Before running the system, you must train the Isolation Forest model. If the MIT-BIH dataset is missing, the script will automatically generate synthetic ECG data for the demo.
 
 ```bash
+cd backend
 python train_model.py
 ```
-*This generates `isolation_forest.pkl`, `scaler.pkl`, and `pca.pkl` in the `model/` directory.*
+*This generates `isolation_forest.pkl`, `scaler.pkl`, and `pca.pkl` in the `backend/model/` directory.*
 
 ### Step 2: Run the Backend Services
-Open **three separate terminals** and run these in order:
+Open **three separate terminals** and run these in order from the `backend/` directory:
 
 1.  **Cloud Server (Centralized Storage):**
     ```bash
+    cd backend
     python cloud_server.py
     ```
 2.  **Fog Gateway (Hospital Node):**
     ```bash
+    cd backend
     python fog_gateway.py
     ```
 3.  **Edge Simulation (Patient Wearable):**
     *Option A (Single Patient):*
     ```bash
+    cd backend
     python edge_sensor.py
     ```
     *Option B (Multi-Patient Scalability Demo):*
     ```bash
+    cd backend
     python multi_edge_sim.py --num_sensors 4
     ```
 
@@ -125,7 +157,9 @@ Open a **fourth terminal** to run the monitoring frontend:
 cd frontend
 npm run dev
 ```
-Navigate to **`http://localhost:5173`** to view the live cardiac monitor.
+Navigate to **`http://localhost:5173`** to view the live cardiac monitor. 
+
+Alternatively, if you prefer the vanilla JS fallback dashboard, simply open `vanilla_dashboard/dashboard.html` in your browser.
 
 ---
 
@@ -153,37 +187,18 @@ Navigate to **`http://localhost:5173`** to view the live cardiac monitor.
 
 ---
 
-## 📁 Project Structure
-
-```text
-.
-├── frontend/           # React + Vite Dashboard (Bootstrap, Recharts)
-├── data/               # Dataset directory (mitbih_train.csv)
-├── model/              # Trained .pkl files (Scaler, PCA, Model)
-├── logs/               # SQLite DB and server logs
-├── edge_sensor.py      # Simulates patient wearable (Encryption + DH)
-├── multi_edge_sim.py   # Simulates multiple concurrent patients
-├── fog_gateway.py      # Hospital-side processor (Decryption + ML)
-├── pure_aes.py         # Pure-Python AES-256 and HMAC implementation
-├── dh_key_exchange.py  # Diffie-Hellman handshake logic
-├── cloud_server.py     # Centralized storage & REST API
-├── train_model.py      # ML training pipeline & ONNX exporter
-├── requirements.txt    # Python dependencies (sklearn, numpy, pandas)
-└── README.md           # This documentation
-```
-
----
-
 ## 🎓 Demo Guide: Security & Encryption
 
 To demonstrate the secure data flow to a teacher or user:
 
 1.  Start the Fog Gateway with the crypto flag:
     ```bash
+    cd backend
     python fog_gateway.py --show-crypto
     ```
 2.  Start the Edge Sensor with the crypto flag:
     ```bash
+    cd backend
     python edge_sensor.py --show-crypto --max_beats 10
     ```
 3.  **Observation:** You will see the raw JSON data on the Edge side, followed by the **Hex Ciphertext** actually sent over the network. The Fog node will show the verification of the **HMAC** and the successful **Decryption** back to JSON for processing.

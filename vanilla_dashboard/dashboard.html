@@ -5,26 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SecureHealth — Fog Cardiac Monitor</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&family=Barlow+Condensed:wght@700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;600&family=Share+Tech+Mono&display=swap');
 
   :root {
-    --bg:        #050d14;
-    --panel:     #0b1a26;
-    --panel2:    #0f2236;
-    --border:    #1a3a52;
-    --teal:      #00e5c8;
-    --teal-dim:  #00a896;
-    --red:       #ff3b5c;
-    --amber:     #f59e0b;
-    --blue:      #38bdf8;
-    --green:     #22d3a5;
-    --text:      #c8e6f5;
-    --text-dim:  #5a8aaa;
+    --bg:        #F8F8F8;
+    --panel:     #FEFEFE;
+    --panel2:    #F0F0F0;
+    --border:    #E8E8E8;
+    --teal:      #111111;
+    --teal-dim:  #767676;
+    --red:       #ff4757;
+    --amber:     #fbc531;
+    --blue:      #0097e6;
+    --green:     #80ED99;
+    --text:      #111111;
+    --text-dim:  #767676;
     --mono:      'Share Tech Mono', monospace;
-    --sans:      'Barlow', sans-serif;
-    --cond:      'Barlow Condensed', sans-serif;
-    --glow-teal: 0 0 12px rgba(0,229,200,0.4);
-    --glow-red:  0 0 16px rgba(255,59,92,0.5);
+    --sans:      'Outfit', system-ui, sans-serif;
+    --cond:      'Outfit', system-ui, sans-serif;
+    --glow-teal: none;
+    --glow-red:  none;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -33,33 +33,17 @@
     background: var(--bg);
     color: var(--text);
     font-family: var(--sans);
+    font-weight: 300;
     min-height: 100vh;
     overflow-x: hidden;
   }
 
-  /* Scanline overlay */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,0,0,0.08) 2px,
-      rgba(0,0,0,0.08) 4px
-    );
-    pointer-events: none;
-    z-index: 1000;
-  }
-
-  /* ── HEADER ─────────────────────────── */
   header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 28px;
-    background: var(--panel);
+    padding: 24px 60px;
+    background: var(--bg);
     border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
@@ -68,33 +52,33 @@
   .logo {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
   }
   .logo-icon {
     width: 36px;
     height: 36px;
-    position: relative;
+    border: 1px solid var(--text);
+    border-radius: 2px;
   }
-  .logo-icon svg { width: 100%; height: 100%; }
+  .logo-icon svg { width: 100%; height: 100%; stroke: var(--text) !important; }
+  .logo-icon circle { stroke: transparent !important; }
   .logo-text {
-    font-family: var(--cond);
-    font-size: 22px;
-    font-weight: 700;
-    color: var(--teal);
-    letter-spacing: 2px;
-    text-transform: uppercase;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.5px;
   }
   .logo-sub {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-dim);
-    letter-spacing: 3px;
+    letter-spacing: 1px;
     text-transform: uppercase;
   }
   .status-bar {
     display: flex;
     align-items: center;
     gap: 24px;
-    font-family: var(--mono);
+    font-family: var(--sans);
     font-size: 11px;
   }
   .status-item {
@@ -102,143 +86,110 @@
     align-items: center;
     gap: 6px;
     color: var(--text-dim);
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+    padding: 4px 8px;
+    border-radius: 2px;
   }
   .status-dot {
-    width: 8px; height: 8px;
+    width: 6px; height: 6px;
     border-radius: 50%;
     background: var(--green);
-    box-shadow: 0 0 6px var(--green);
-    animation: pulse-dot 2s ease-in-out infinite;
   }
-  .status-dot.offline { background: var(--text-dim); box-shadow: none; animation: none; }
-  @keyframes pulse-dot {
-    0%,100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
+  .status-dot.offline { background: var(--red); }
   .header-time {
-    font-family: var(--mono);
+    font-family: var(--sans);
     font-size: 13px;
-    color: var(--teal);
+    color: var(--text);
     letter-spacing: 1px;
   }
 
-  /* ── LAYOUT ─────────────────────────── */
   .main-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     grid-template-rows: auto auto auto;
-    gap: 14px;
-    padding: 16px 20px;
-    max-width: 1600px;
+    gap: 24px;
+    padding: 40px 60px;
+    max-width: 1720px;
     margin: 0 auto;
   }
 
-  /* ── PANELS ─────────────────────────── */
   .panel {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 16px;
+    border-radius: 2px;
+    padding: 24px;
     position: relative;
     overflow: hidden;
   }
-  .panel::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--teal), transparent);
-    opacity: 0.6;
-  }
   .panel-title {
-    font-family: var(--cond);
     font-size: 11px;
-    letter-spacing: 3px;
+    letter-spacing: 2px;
     text-transform: uppercase;
     color: var(--text-dim);
-    margin-bottom: 14px;
+    margin-bottom: 24px;
     display: flex;
     align-items: center;
     gap: 8px;
   }
-  .panel-title span { color: var(--teal); }
+  .panel-title span { color: var(--text); font-weight: 400; }
 
-  /* ── ECG WAVEFORM ───────────────────── */
   .ecg-panel { grid-column: 1 / 4; }
   #ecg-canvas {
     width: 100%;
     height: 90px;
     display: block;
+    background: var(--panel);
   }
   .ecg-meta {
     display: flex;
-    gap: 24px;
-    margin-top: 10px;
-    font-family: var(--mono);
+    gap: 32px;
+    margin-top: 24px;
     font-size: 11px;
     color: var(--text-dim);
+    text-transform: uppercase;
   }
-  .ecg-meta .val { color: var(--teal); }
+  .ecg-meta .val { color: var(--text); font-size: 13px; display: block; margin-top: 4px;}
 
-  /* ── STAT CARDS ─────────────────────── */
   .stats-row {
     grid-column: 1 / 4;
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    gap: 14px;
+    gap: 24px;
   }
   .stat-card {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 16px 18px;
-    position: relative;
-    overflow: hidden;
+    border-radius: 2px;
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
   }
-  .stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-  }
-  .stat-card.teal::before   { background: var(--teal); }
-  .stat-card.red::before    { background: var(--red); }
-  .stat-card.amber::before  { background: var(--amber); }
-  .stat-card.blue::before   { background: var(--blue); }
-  .stat-card.green::before  { background: var(--green); }
   .stat-label {
-    font-size: 10px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 2px;
     color: var(--text-dim);
-    font-family: var(--mono);
-    margin-bottom: 6px;
+    margin-bottom: 12px;
   }
   .stat-value {
-    font-family: var(--cond);
-    font-size: 36px;
-    font-weight: 700;
+    font-size: 48px;
+    font-weight: 200;
     line-height: 1;
+    color: var(--text);
   }
-  .stat-card.teal  .stat-value { color: var(--teal); }
-  .stat-card.red   .stat-value { color: var(--red); }
-  .stat-card.amber .stat-value { color: var(--amber); }
-  .stat-card.blue  .stat-value { color: var(--blue); }
-  .stat-card.green .stat-value { color: var(--green); }
   .stat-sub {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-dim);
-    margin-top: 4px;
+    margin-top: 12px;
   }
 
-  /* ── ALERT FEED ─────────────────────── */
   .alert-panel {
     grid-column: 1 / 3;
   }
   #alert-feed {
     display: flex;
     flex-direction: column;
-    gap: 6px;
     max-height: 340px;
     overflow-y: auto;
   }
@@ -247,82 +198,70 @@
   .alert-item {
     display: grid;
     grid-template-columns: 80px 1fr auto auto auto;
-    gap: 10px;
+    gap: 16px;
     align-items: center;
-    padding: 9px 12px;
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    font-family: var(--mono);
-    font-size: 11px;
+    padding: 16px 0;
+    background: transparent;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--sans);
+    font-size: 13px;
     animation: slideIn 0.3s ease;
-    border-left: 3px solid transparent;
   }
+  .alert-item:last-child { border-bottom: none; }
   @keyframes slideIn {
     from { opacity: 0; transform: translateX(-10px); }
     to   { opacity: 1; transform: translateX(0); }
   }
-  .alert-item.pvc       { border-left-color: var(--red); }
-  .alert-item.svp       { border-left-color: var(--amber); }
-  .alert-item.fusion    { border-left-color: var(--blue); }
-  .alert-item.other     { border-left-color: var(--text-dim); }
-  .alert-time   { color: var(--text-dim); }
+  .alert-time   { color: var(--text-dim); font-size: 11px; }
   .alert-type-badge {
-    display: inline-block;
-    padding: 2px 7px;
-    border-radius: 2px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1px;
+    font-size: 11px;
+    font-weight: 400;
     text-transform: uppercase;
   }
-  .badge-pvc     { background: rgba(255,59,92,0.2); color: var(--red); }
-  .badge-svp     { background: rgba(245,158,11,0.2); color: var(--amber); }
-  .badge-fusion  { background: rgba(56,189,248,0.2); color: var(--blue); }
-  .badge-other   { background: rgba(90,138,170,0.2); color: var(--text-dim); }
+  .badge-pvc     { color: var(--red); }
+  .badge-svp     { color: var(--amber); }
+  .badge-fusion  { color: var(--blue); }
+  .badge-other   { color: var(--text-dim); }
   .alert-score  { color: var(--text-dim); }
-  .alert-ms     { color: var(--teal-dim); }
-  .alert-beat   { color: var(--text-dim); }
+  .alert-ms     { color: var(--text); }
+  .alert-beat   { color: var(--text); font-weight: 400; }
 
-  /* ── DISTRIBUTION CHART ─────────────── */
   .dist-panel { grid-column: 3 / 4; }
   .dist-bar-container {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin-top: 6px;
+    margin-top: 12px;
   }
   .dist-row {
     display: grid;
-    grid-template-columns: 80px 1fr 50px;
-    gap: 8px;
+    grid-template-columns: 100px 1fr 40px;
+    gap: 16px;
     align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
   }
+  .dist-row:last-child { border-bottom: none; }
   .dist-label {
-    font-family: var(--mono);
     font-size: 11px;
     color: var(--text-dim);
-    text-align: right;
+    text-transform: uppercase;
   }
   .dist-bar-bg {
-    height: 14px;
-    background: var(--panel2);
-    border-radius: 2px;
-    overflow: hidden;
+    height: 4px;
+    background: var(--border);
+    width: 100%;
   }
   .dist-bar-fill {
     height: 100%;
-    border-radius: 2px;
+    background: var(--text);
     transition: width 0.6s ease;
   }
   .dist-count {
-    font-family: var(--mono);
     font-size: 11px;
     color: var(--text);
     text-align: right;
   }
 
-  /* ── BANDWIDTH PANEL ────────────────── */
   .bw-panel { grid-column: 1 / 2; }
   .bw-gauge {
     display: flex;
@@ -343,12 +282,10 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-family: var(--cond);
   }
-  .bw-pct { font-size: 28px; font-weight: 700; color: var(--green); }
-  .bw-sub { font-size: 9px; color: var(--text-dim); letter-spacing: 1px; margin-top: 2px; }
+  .bw-pct { font-size: 28px; font-weight: 300; color: var(--text); }
+  .bw-sub { font-size: 9px; color: var(--text-dim); text-transform: uppercase; margin-top: 4px; }
 
-  /* ── LATENCY PANEL ──────────────────── */
   .lat-panel { grid-column: 2 / 3; }
   #lat-canvas {
     width: 100%;
@@ -358,60 +295,54 @@
   .lat-stats {
     display: flex;
     gap: 20px;
-    margin-top: 8px;
-    font-family: var(--mono);
+    margin-top: 16px;
     font-size: 11px;
   }
-  .lat-stat-label { color: var(--text-dim); }
-  .lat-stat-val   { color: var(--teal); }
+  .lat-stat-label { color: var(--text-dim); text-transform: uppercase; display: block; margin-bottom: 4px;}
+  .lat-stat-val   { color: var(--text); font-size: 13px;}
 
-  /* ── SYSTEM LOG ─────────────────────── */
   .log-panel { grid-column: 3 / 4; }
   #sys-log {
     max-height: 130px;
     overflow-y: auto;
-    font-family: var(--mono);
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-dim);
-    line-height: 1.8;
+    line-height: 2;
   }
   #sys-log::-webkit-scrollbar { width: 3px; }
   #sys-log::-webkit-scrollbar-thumb { background: var(--border); }
-  .log-line { display: flex; gap: 8px; }
-  .log-ts { color: var(--teal-dim); }
+  .log-line { display: flex; gap: 12px; border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 4px;}
+  .log-line:last-child { border-bottom: none; }
+  .log-ts { color: var(--text); }
   .log-msg-info  { color: var(--text-dim); }
   .log-msg-warn  { color: var(--amber); }
   .log-msg-alert { color: var(--red); }
-  .log-msg-ok    { color: var(--green); }
+  .log-msg-ok    { color: var(--text); }
 
-  /* ── ALERT BANNER ───────────────────── */
   #alert-banner {
     display: none;
     position: fixed;
     top: 0; left: 0; right: 0;
     z-index: 500;
-    padding: 12px 24px;
+    padding: 16px 24px;
     background: var(--red);
     color: #fff;
-    font-family: var(--cond);
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 3px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 2px;
     text-align: center;
     text-transform: uppercase;
-    animation: flash 0.5s ease infinite alternate;
   }
-  @keyframes flash { from { opacity: 1; } to { opacity: 0.6; } }
 
-  /* ── FOOTER ─────────────────────────── */
   footer {
     text-align: center;
-    padding: 12px;
-    font-size: 10px;
+    padding: 24px;
+    font-size: 11px;
     color: var(--text-dim);
-    font-family: var(--mono);
     border-top: 1px solid var(--border);
     letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 40px;
   }
 </style>
 </head>
@@ -597,7 +528,7 @@ function drawEcg(signal, isAnomaly) {
   ecgCtx.clearRect(0, 0, W, H);
 
   // Grid
-  ecgCtx.strokeStyle = 'rgba(26,58,82,0.6)';
+  ecgCtx.strokeStyle = 'rgba(232,232,232,0.6)';
   ecgCtx.lineWidth = 0.5;
   for (let x = 0; x < W; x += 40) {
     ecgCtx.beginPath(); ecgCtx.moveTo(x, 0); ecgCtx.lineTo(x, H); ecgCtx.stroke();
@@ -607,10 +538,10 @@ function drawEcg(signal, isAnomaly) {
   }
 
   // Waveform
-  const color = isAnomaly ? '#ff3b5c' : '#00e5c8';
-  const glow  = isAnomaly ? 'rgba(255,59,92,0.6)' : 'rgba(0,229,200,0.4)';
+  const color = isAnomaly ? '#ff4757' : '#111111';
+  const glow  = isAnomaly ? 'rgba(255,71,87,0.2)' : 'rgba(17,17,17,0.1)';
 
-  ecgCtx.shadowBlur  = 8;
+  ecgCtx.shadowBlur  = 0;
   ecgCtx.shadowColor = glow;
   ecgCtx.strokeStyle = color;
   ecgCtx.lineWidth   = isAnomaly ? 2 : 1.5;
@@ -630,7 +561,7 @@ function drawEcg(signal, isAnomaly) {
   const scanX = pts.length - 1;
   const grad = ecgCtx.createLinearGradient(scanX - 60, 0, scanX, 0);
   grad.addColorStop(0, 'transparent');
-  grad.addColorStop(1, 'rgba(0,229,200,0.15)');
+  grad.addColorStop(1, 'rgba(17,17,17,0.05)');
   ecgCtx.fillStyle = grad;
   ecgCtx.fillRect(Math.max(0, scanX - 60), 0, 60, H);
 }
@@ -658,7 +589,7 @@ function drawLatency() {
 
   // Target line
   const ty = H - ((TARGET / maxL) * H * 0.9);
-  latCtx.strokeStyle = 'rgba(34,211,165,0.3)';
+  latCtx.strokeStyle = 'rgba(17,17,17,0.2)';
   latCtx.setLineDash([4, 4]);
   latCtx.beginPath(); latCtx.moveTo(0, ty); latCtx.lineTo(W, ty); latCtx.stroke();
   latCtx.setLineDash([]);
@@ -667,7 +598,7 @@ function drawLatency() {
   const bw = W / recent.length;
   recent.forEach((v, i) => {
     const bh = (v / maxL) * H * 0.9;
-    const color = v > TARGET ? '#ff3b5c' : '#00a896';
+    const color = v > TARGET ? '#ff4757' : '#111111';
     latCtx.fillStyle = color;
     latCtx.fillRect(i * bw, H - bh, bw - 1, bh);
   });

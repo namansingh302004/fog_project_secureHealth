@@ -297,8 +297,8 @@ function App() {
                   <Area
                     type="monotone"
                     dataKey="value"
-                    stroke="var(--accent)"
-                    strokeWidth={3}
+                    stroke="var(--text)"
+                    strokeWidth={1.5}
                     fill="url(#ecgFill)"
                     dot={false}
                   />
@@ -424,7 +424,7 @@ function App() {
                       color: 'var(--text)',
                     }}
                   />
-                  <Line type="monotone" dataKey="latency" stroke="var(--accent)" strokeWidth={3} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="latency" stroke="var(--text)" strokeWidth={1.5} dot={{ r: 3, fill: 'var(--text)' }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
