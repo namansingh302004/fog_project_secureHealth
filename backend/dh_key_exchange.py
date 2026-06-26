@@ -238,16 +238,16 @@ def _self_test():
     assert alice_shared == bob_shared, "DH shared secrets do not match!"
     print(f"  Alice public : {alice.public_key.bit_length()} bits")
     print(f"  Bob public   : {bob.public_key.bit_length()} bits")
-    print(f"  Shared secret: {hex(alice_shared)[:20]}... (match ✓)")
+    print(f"  Shared secret: {hex(alice_shared)[:20]}... (match OK)")
 
     aes_a, hmac_a = hkdf_derive(alice_shared)
     aes_b, hmac_b = hkdf_derive(bob_shared)
 
     assert aes_a == aes_b,  "AES keys do not match!"
     assert hmac_a == hmac_b, "HMAC keys do not match!"
-    print(f"  AES key  : {aes_a.hex()[:16]}... ✓")
-    print(f"  HMAC key : {hmac_a.hex()[:16]}... ✓")
-    print("[dh_key_exchange] All tests passed ✓\n")
+    print(f"  AES key  : {aes_a.hex()[:16]}... OK")
+    print(f"  HMAC key : {hmac_a.hex()[:16]}... OK")
+    print("[dh_key_exchange] All tests passed OK\n")
 
 
 if __name__ == "__main__":

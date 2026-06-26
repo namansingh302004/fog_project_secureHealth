@@ -366,21 +366,21 @@ def _self_test():
     recovered = aes256_cbc_decrypt(iv_ct, key)
     assert recovered == plaintext, f"Decryption failed! Got: {recovered}"
     print(f"  Decrypted  : {recovered}")
-    print("  ✓ Encrypt → Decrypt round-trip PASSED")
+    print("  OK Encrypt → Decrypt round-trip PASSED")
 
     # HMAC test
     mac = hmac_sha256(key, ct)
     assert hmac_verify(key, ct, mac), "HMAC verification failed!"
     print(f"  HMAC-SHA256: {mac.hex()[:32]}...")
-    print("  ✓ HMAC sign → verify PASSED")
+    print("  OK HMAC sign → verify PASSED")
 
     # Longer message test
     msg = b"ECG ANOMALY PAYLOAD " * 10  # 200 bytes
     iv_ct2 = aes256_cbc_encrypt(msg, key)
     assert aes256_cbc_decrypt(iv_ct2, key) == msg
-    print("  ✓ Multi-block (200 bytes) round-trip PASSED")
+    print("  OK Multi-block (200 bytes) round-trip PASSED")
 
-    print("[pure_aes] All self-tests passed ✓\n")
+    print("[pure_aes] All self-tests passed OK\n")
 
 
 if __name__ == "__main__":

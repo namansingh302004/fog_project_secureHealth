@@ -113,15 +113,15 @@ def main():
             p["bpm"] = args.bpm
         profiles.append(p)
 
-    print("═" * 65)
+    print("=" * 65)
     print("  MULTI-SENSOR FOG GATEWAY SIMULATION — DA-3")
-    print("═" * 65)
+    print("=" * 65)
     print(f"  Sensors to launch : {num}")
     print(f"  Fog target        : {args.fog_host}:{args.fog_port}")
     print(f"  Max beats/sensor  : {args.max_beats}")
     print(f"  Stagger delay     : {args.stagger_s}s between starts")
     print(f"  Key Exchange      : Diffie-Hellman (independent per sensor)")
-    print("═" * 65)
+    print("=" * 65)
     print()
     print("  Sensor profiles:")
     for p in profiles:
@@ -146,7 +146,7 @@ def main():
         )
         threads.append(t)
         t.start()
-        print(f"[SIM] ✓ Launched {profile['device_id']} (thread: {t.name})")
+        print(f"[SIM] OK Launched {profile['device_id']} (thread: {t.name})")
         if i < len(profiles) - 1:
             time.sleep(args.stagger_s)
 
@@ -158,7 +158,7 @@ def main():
     except KeyboardInterrupt:
         print("\n[SIM] Multi-sensor simulation interrupted.")
 
-    print("\n[SIM] ═══ SIMULATION COMPLETE ═══")
+    print("\n[SIM] === SIMULATION COMPLETE ===")
     print(f"[SIM] All {num} sensor threads finished.")
     print(f"[SIM] Check fog_gateway stats API: http://127.0.0.1:9001/stats")
     print(f"[SIM] Per-device breakdown available in 'per_device_stats' field.")

@@ -269,7 +269,7 @@ def handle_client(conn, addr, model, scaler, pca,
             iv_ciphertext = wire[32:]
 
             if show_crypto:
-                log.info("\n" + "═" * 62)
+                log.info("\n" + "=" * 62)
                 log.info(f"  [PURE-AES DECRYPTION] Packet from {addr}")
                 log.info(f"  STEP 1 — Received ciphertext (first 32 bytes hex):")
                 log.info(f"           {iv_ciphertext.hex()[:64]}...")
@@ -300,7 +300,7 @@ def handle_client(conn, addr, model, scaler, pca,
                 log.info(f"  STEP 4 — Recovered plaintext (truncated):")
                 log.info(f"           {json.dumps(display)}...")
                 log.info(f"  STEP 5 — Keys derived from DH (never stored on disk)")
-                log.info("═" * 62 + "\n")
+                log.info("=" * 62 + "\n")
 
             ecg_features = np.array(pkt["ecg_signal"], dtype=np.float32)
             beat_id      = pkt["beat_id"]

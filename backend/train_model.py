@@ -227,7 +227,7 @@ def evaluate(model, X_test, y_test_bin):
     print(f"    False Positives (FP): {fp:6d}   (Normal flagged as anomaly)")
     print(f"    False Negatives (FN): {fn:6d}   (Anomaly missed — DANGEROUS)")
     print(f"    True Positives  (TP): {tp:6d}   (Anomaly correctly detected)")
-    print(f"  Inference time per beat: {per_sample_ms:.3f} ms  (TinyML target: <100ms ✓)")
+    print(f"  Inference time per beat: {per_sample_ms:.3f} ms  (TinyML target: <100ms OK)")
     print(f"{'='*50}")
 
     return {"f1": f1, "auc": auc, "tn": int(tn), "fp": int(fp),
@@ -323,7 +323,7 @@ def export_onnx(model, scaler, pca, metrics):
             f.write(onnx_model.SerializeToString())
 
         onnx_kb = _get_file_size_kb(onnx_path)
-        print(f"[ONNX] ✓ Exported → {onnx_path}  ({onnx_kb:.1f} KB)")
+        print(f"[ONNX] OK Exported → {onnx_path}  ({onnx_kb:.1f} KB)")
 
         # Validate the ONNX model with a test inference
         sess = rt.InferenceSession(onnx_path)
@@ -334,7 +334,7 @@ def export_onnx(model, scaler, pca, metrics):
         result = sess.run([output_name], {input_name: dummy_input})
         prediction = result[0][0]  # +1 normal, -1 anomaly
 
-        print(f"[ONNX] ✓ Validation inference passed — prediction: {prediction}")
+        print(f"[ONNX] OK Validation inference passed — prediction: {prediction}")
         print(f"[ONNX]   Input : (1, 187) float32 ECG features")
         print(f"[ONNX]   Output: {prediction}  (+1=Normal, -1=Anomaly)")
         print(f"[ONNX]   File  : {onnx_path}  ({onnx_kb:.1f} KB)")
@@ -392,10 +392,10 @@ def tinyml_suitability_report(model, scaler, pca, metrics):
     print(f"    ROC-AUC              : {metrics['auc']:.4f}")
     print(f"")
     print(f"  Raspberry Pi 4 Compatibility:")
-    print(f"    RAM (4B RPi4 = 4GB)  : {total_kb/1024:.2f} MB required ✓")
-    print(f"    Inference latency    : {metrics['inference_ms']:.3f} ms  (< 100ms ✓)")
-    print(f"    No GPU required      : ✓ (scikit-learn CPU-only)")
-    print(f"    ONNX Export possible : ✓ (skl2onnx library)")
+    print(f"    RAM (4B RPi4 = 4GB)  : {total_kb/1024:.2f} MB required OK")
+    print(f"    Inference latency    : {metrics['inference_ms']:.3f} ms  (< 100ms OK)")
+    print(f"    No GPU required      : OK (scikit-learn CPU-only)")
+    print(f"    ONNX Export possible : OK (skl2onnx library)")
     print(f"")
     print(f"  Deployment Path:")
     print(f"    Current : scikit-learn pkl (PC / RPi simulation)")

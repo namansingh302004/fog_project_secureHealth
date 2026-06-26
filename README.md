@@ -4,8 +4,6 @@
 
 ### ML-Powered ECG Anomaly Detection with Edge-Fog-Cloud Architecture
 
-**Course:** BCSE313L – Fundamentals of FOG and Edge Computing  
-**Team:** Kiran Biju (23BCE1313) · Abel Dan Alex (23BCE1335) · Naman Kumar Singh (23BCE1354)
 
 ---
 
@@ -191,7 +189,7 @@ Alternatively, if you prefer the vanilla JS fallback dashboard, simply open `van
 
 ## 🎓 Demo Guide: Security & Encryption
 
-To demonstrate the secure data flow to a teacher or user:
+To demonstrate the secure data flow:
 
 1.  Start the Fog Gateway with the crypto flag:
     ```bash

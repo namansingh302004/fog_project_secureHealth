@@ -91,7 +91,7 @@ def build_packet(beat_id: int, ecg_features: np.ndarray, true_label: int,
     if verbose:
         display = payload.copy()
         display["ecg_signal"] = display["ecg_signal"][:5]
-        print("\n" + "═" * 62)
+        print("\n" + "=" * 62)
         print(f"  [PURE-AES ENCRYPTION] Beat #{beat_id} | Device: {device_id}")
         print(f"  STEP 1 — Plaintext JSON (truncated):")
         print(f"           {json.dumps(display)}...")
@@ -111,7 +111,7 @@ def build_packet(beat_id: int, ecg_features: np.ndarray, true_label: int,
         print(f"  STEP 4 — HMAC-SHA256 Signature:")
         print(f"           {mac.hex()}")
         print(f"  STEP 5 — Session keys were derived via DH (never on disk)")
-        print("═" * 62 + "\n")
+        print("=" * 62 + "\n")
 
     wire_payload = mac + iv_ciphertext
     frame = struct.pack(">I", len(wire_payload)) + wire_payload
@@ -144,12 +144,12 @@ class EdgeSensorNode:
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.connect((self.fog_host, self.fog_port))
-                print(f"[EDGE:{self.device_id}] ✓ TCP connected to Fog {self.fog_host}:{self.fog_port}")
+                print(f"[EDGE:{self.device_id}] OK TCP connected to Fog {self.fog_host}:{self.fog_port}")
 
                 # ── Diffie-Hellman Handshake ──────────────────────────
                 print(f"[EDGE:{self.device_id}] Initiating DH key exchange...")
                 self.aes_key, self.hmac_key = edge_perform_handshake(sock)
-                print(f"[EDGE:{self.device_id}] ✓ DH handshake complete — session keys active")
+                print(f"[EDGE:{self.device_id}] OK DH handshake complete — session keys active")
                 return sock
 
             except ConnectionRefusedError:
@@ -166,14 +166,14 @@ class EdgeSensorNode:
             df = df[df.iloc[:, -1] != 0].reset_index(drop=True)
             print(f"[EDGE:{self.device_id}] Demo mode enabled — streaming anomaly-only beats ({len(df)} samples)")
 
-        print(f"\n[EDGE:{self.device_id}] ════════════════════════════════════════")
+        print(f"\n[EDGE:{self.device_id}] ========================================")
         print(f"[EDGE:{self.device_id}]  EDGE SENSOR NODE STARTED")
         print(f"[EDGE:{self.device_id}]  Encryption  : Pure-Python AES-256-CBC")
         print(f"[EDGE:{self.device_id}]  Integrity   : HMAC-SHA256")
         print(f"[EDGE:{self.device_id}]  Key Exchange: Diffie-Hellman (RFC 3526 Group 14)")
         print(f"[EDGE:{self.device_id}]  Simulated BPM: {int(60 / self.beat_interval)}")
         print(f"[EDGE:{self.device_id}]  Total samples : {len(df)}")
-        print(f"[EDGE:{self.device_id}] ════════════════════════════════════════\n")
+        print(f"[EDGE:{self.device_id}] ========================================\n")
 
         sock = self._connect_and_handshake()
         beat_id = 0
@@ -207,7 +207,7 @@ class EdgeSensorNode:
                         self.stats["normal"] += 1
                         if beat_id % 10 == 0:
                             print(f"[EDGE:{self.device_id}] Beat #{beat_id:05d} | "
-                                  f"Normal | ✓ {len(packet)} bytes sent")
+                                  f"Normal | OK {len(packet)} bytes sent")
                 except (BrokenPipeError, ConnectionResetError):
                     print(f"[EDGE:{self.device_id}] Connection lost. Reconnecting...")
                     sock = self._connect_and_handshake()
@@ -223,7 +223,7 @@ class EdgeSensorNode:
             self._print_summary()
 
     def _print_summary(self):
-        print(f"\n[EDGE:{self.device_id}] ═══ SESSION SUMMARY ═══")
+        print(f"\n[EDGE:{self.device_id}] === SESSION SUMMARY ===")
         print(f"  Beats sent   : {self.stats['sent']}")
         print(f"  Normal       : {self.stats['normal']}")
         print(f"  Anomaly      : {self.stats['anomaly']}")
