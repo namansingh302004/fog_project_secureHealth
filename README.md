@@ -1,4 +1,6 @@
-# Secure Fog Cardiac Monitoring System 🩺
+# Secure Fog Computing: Real-Time ECG Anomaly Detection
+
+![Dashboard Screenshot](assets/screenshot.png)
 
 ### ML-Powered ECG Anomaly Detection with Edge-Fog-Cloud Architecture
 
